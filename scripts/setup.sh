@@ -254,4 +254,15 @@ mkdir "$script_dir/../Desktop"
 
 # Start container
 f_echo "Now, the container is started (only terminal, no GUI) and the actual installation process begins."
-docker run --init -it --rm --name vivado_container --mount type=bind,source="$script_dir/..",target="/home/user" -p 127.0.0.1:5901:5901 --platform linux/amd64 x64-linux sudo -H -u user bash /home/user/scripts/install_vivado.sh
+if [ "$(engine_kind)" = "apple" ]
+then
+	engine_ensure_host_alias
+	container run --init --interactive --tty --rm --name vivado_container \
+		--memory "${VIVADO_MEMORY:-16}g" --cpus "${VIVADO_CPUS:-8}" \
+		--mount type=bind,source="$script_dir/..",target=/home/user \
+		--publish 127.0.0.1:5901:5901 \
+		--env VIVADO_HOST_ALIAS=host.container.internal \
+		x64-linux sudo -H -u user bash /home/user/scripts/install_vivado.sh
+else
+	docker run --init -it --rm --name vivado_container --mount type=bind,source="$script_dir/..",target="/home/user" -p 127.0.0.1:5901:5901 --platform linux/amd64 x64-linux sudo -H -u user bash /home/user/scripts/install_vivado.sh
+fi

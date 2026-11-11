@@ -3,6 +3,9 @@
 
 **[English](README.md) | 简体中文**
 
+> [!WARNING]
+> 这是实验性的 `ctn` 分支：在 `main` 分支的基础上增加了可选的 Apple [`container`](https://github.com/apple/container) 后端。Docker Desktop / OrbStack / Colima 仍是默认且稳定的方式；Apple container 后端尚未经过完整测试，也不会合并进 `main`。它无法使用原生 USB 直通，因此 JTAG 转发仍然使用 `xvcd`。
+
 *已更新至 2026.1！*
 
 ## 支持版本
@@ -30,6 +33,7 @@
 - **Apple Silicon**：支持 M1、M2、M3、M4 及更新芯片。
 - **macOS**：推荐 macOS 15（Sequoia）或更新版本。由于 Rosetta 模拟存在缺陷，大多数 macOS 14（Sonoma）版本**不受支持**——如果检测到 macOS 14，安装脚本会给出警告。
 - **容器引擎**：Docker Desktop（默认）、[OrbStack](https://orbstack.dev/) 或 [Colima](https://github.com/abiosoft/colima)。三者都提供 `docker` 命令行，脚本会自动检测并启动对应的容器引擎。
+  - 本分支还支持 Apple [`container`](https://github.com/apple/container)（实验性，需要 macOS 26+）：设置 `VIVADO_ENGINE=apple` 即可使用，详见下方 "Apple container 后端"。
 - Docker 容器镜像保持在 **8 GiB** 以内（Vivado 本身安装在绑定挂载的目录中，不在镜像内）。基础镜像会自动选择：2019.2 用 Ubuntu 18.04，2021.1–2022.1 用 Ubuntu 20.04，2022.2–2024.1 用 Ubuntu 22.04，2024.2 及以上用 Ubuntu 24.04。
 
 ## 如何安装
@@ -80,6 +84,18 @@ USB 烧录支持有限，请参考下方 "USB 连接" 段落。
 - Docker Desktop：设置 → Resources。
 - OrbStack：`orb config set memory_mib 16384`（CPU 和内存也可在 OrbStack 应用的设置中调整）。
 - Colima：`colima stop && colima start --vm-type=vz --vz-rosetta --cpu 8 --memory 16`。
+
+#### Apple container 后端（实验性，仅本分支）
+
+[Apple `container`](https://github.com/apple/container) 会为每个容器运行一个轻量级 VM，并自动为 `amd64` 镜像启用 Rosetta。本分支将其作为 Docker Desktop / OrbStack / Colima 之外的实验性备选方案：
+
+1. 从[发布页](https://github.com/apple/container/releases)安装 `container`（需要 Apple silicon + macOS 26+），并先运行一次 `container system start`。
+2. 使用 `VIVADO_ENGINE=apple` 运行本项目，例如 `VIVADO_ENGINE=apple zsh ./scripts/setup.sh`。
+3. 容器通过 `host.container.internal` 访问宿主机。setup/start 脚本会执行 `sudo container system dns create host.container.internal --localhost 203.0.113.113` 创建该 DNS 记录（需要 sudo，会禁用 Private Relay，macOS 重启后失效）。使用 Docker 兼容引擎时宿主机地址是 `host.docker.internal`。
+4. 资源按容器设置：脚本使用 8 CPU / 16 GiB（可用 `VIVADO_CPUS`、`VIVADO_MEMORY` 覆盖），镜像构建器使用 4 GiB（`VIVADO_BUILDER_MEMORY`）。与 `main` 一样会自动选择 Ubuntu 镜像（2019.2 用 18.04，2021.x/2022.1 用 20.04，2022.2–2024.1 用 22.04，2024.2+ 用 24.04）。
+5. Apple container CLI（1.7.x）不支持 USB 直通，尽管 macOS 27 的 Virtualization framework 已提供 USB 直通 API。因此 JTAG 转发仍使用 `xvcd`，并通过 `host.container.internal` 连接 xvcd 主机。
+
+如果未设置 `VIVADO_ENGINE`，脚本会优先使用 Docker 兼容引擎；只有在找不到 Docker 兼容引擎时才会自动使用 Apple container。该后端尚未用真实 Vivado 安装做过端到端测试——如遇问题欢迎反馈。
 
 ### 说明
 

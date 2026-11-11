@@ -3,6 +3,9 @@ This is a tool for installing [Vivado™](https://www.xilinx.com/support/downloa
 
 **English | [简体中文](README_zh_cn.md)**
 
+> [!WARNING]
+> This is the experimental `ctn` branch: it adds an optional Apple [`container`](https://github.com/apple/container) backend on top of the `main` branch. Docker Desktop / OrbStack / Colima remain the defaults and the stable path; the Apple container backend is untested and not merged into `main`. It cannot use native USB passthrough, so JTAG forwarding keeps using `xvcd`.
+
 *Updated for 2026.1!*
 
 ## Supported versions
@@ -30,6 +33,7 @@ Every release uses the **newest Ubuntu version that AMD officially supports** fo
 - **Apple Silicon**: M1, M2, M3, M4 and later chips are supported.
 - **macOS**: macOS 15 (Sequoia) or later is recommended. Most versions of macOS 14 (Sonoma) are **not supported** due to Rosetta emulation bugs — the installer will warn you if you are on macOS 14.
 - **Container engine**: Docker Desktop (default), [OrbStack](https://orbstack.dev/) or [Colima](https://github.com/abiosoft/colima). All three provide the `docker` command line, and the scripts detect and start the engine automatically.
+  - This branch additionally supports Apple [`container`](https://github.com/apple/container) (experimental, macOS 26+): set `VIVADO_ENGINE=apple` to use it. See "Apple container backend" below.
 - The Docker container image is kept well under **8 GiB** (Vivado itself is installed to a bind-mounted folder, not inside the image). The base image is selected automatically: Ubuntu 18.04 for 2019.2, Ubuntu 20.04 for 2021.1–2022.1, Ubuntu 22.04 for 2022.2–2024.1, Ubuntu 24.04 for 2024.2+.
 
 ## How to install
@@ -80,6 +84,18 @@ Memory and CPU resources can be changed per engine:
 - Docker Desktop: Settings → Resources.
 - OrbStack: `orb config set memory_mib 16384` (CPU and memory can also be adjusted in the OrbStack app's Settings).
 - Colima: `colima stop && colima start --vm-type=vz --vz-rosetta --cpu 8 --memory 16`.
+
+#### Apple container backend (experimental, this branch only)
+
+[Apple `container`](https://github.com/apple/container) runs every container in a lightweight VM and enables Rosetta for `amd64` images automatically. It is available on this branch as an experimental alternative to Docker Desktop / OrbStack / Colima:
+
+1. Install `container` from the [release page](https://github.com/apple/container/releases) (macOS 26+ on Apple silicon) and start it once with `container system start`.
+2. Use it for this project with `VIVADO_ENGINE=apple`, for example `VIVADO_ENGINE=apple zsh ./scripts/setup.sh`.
+3. The container reaches the host through `host.container.internal`. The setup/start scripts create that DNS entry with `sudo container system dns create host.container.internal --localhost 203.0.113.113` (it requires sudo, disables Private Relay, and is removed when macOS restarts). With Docker-compatible engines the host is reachable as `host.docker.internal` instead.
+4. Resources are set per container; the scripts use 8 CPUs / 16 GiB (`VIVADO_CPUS`, `VIVADO_MEMORY`) and 4 GiB for the image builder (`VIVADO_BUILDER_MEMORY`). The same Ubuntu image selection as on `main` applies (18.04 for 2019.2, 20.04 for 2021.x/2022.1, 22.04 for 2022.2–2024.1, 24.04 for 2024.2+).
+5. USB passthrough is not available in the Apple container CLI (as of 1.7.x), even though macOS 27's Virtualization framework has USB passthrough APIs. JTAG forwarding therefore continues to use `xvcd` with `host.container.internal` as the xvcd host.
+
+If `VIVADO_ENGINE` is unset, Docker-compatible engines are preferred; Apple container is only used automatically when no Docker-compatible engine is found. This backend has not been tested end-to-end with a real Vivado installation yet — please report issues.
 
 ### Notes
 

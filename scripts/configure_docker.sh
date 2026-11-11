@@ -29,6 +29,13 @@ then
             f_echo "Make sure Colima was started with Rosetta x86_64 emulation:"
             f_echo "  colima start --vm-type=vz --vz-rosetta --cpu 8 --memory 16"
             ;;
+        apple-container)
+            f_echo "Apple container enables Rosetta for amd64 containers automatically."
+            f_echo "Requires macOS 26+ on Apple silicon and 'container system start'."
+            f_echo "Host access for xvcd (created automatically by the setup scripts):"
+            f_echo "  sudo container system dns create host.container.internal --localhost 203.0.113.113"
+            f_echo "USB passthrough is not available in the Apple container CLI; xvcd is required."
+            ;;
     esac
     exit 0
 fi

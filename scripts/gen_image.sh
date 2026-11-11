@@ -41,12 +41,23 @@ fi
 dockerfile="${VIVADO_DOCKERFILE:-$script_dir/Dockerfile}"
 f_echo "Using Dockerfile: $dockerfile (base image: $base_image)"
 
-# Build the Docker image according to the Dockerfile
-f_echo "Building Docker image..."
-if ! docker build --platform linux/amd64 -f "$dockerfile" --build-arg BASE_IMAGE="$base_image" -t x64-linux "$script_dir"
+# Build the container image according to the Dockerfile
+f_echo "Building container image..."
+if [ "$(engine_kind)" = "apple" ]
 then
-	f_echo "Docker image generation failed!"
-	exit 1
+	# Make sure the BuildKit builder VM has enough memory for apt.
+	container builder start --cpus "${VIVADO_CPUS:-8}" --memory "${VIVADO_BUILDER_MEMORY:-4}g" &> /dev/null
+	if ! container build --arch amd64 --file "$dockerfile" --build-arg BASE_IMAGE="$base_image" --tag x64-linux "$script_dir"
+	then
+		f_echo "Container image generation failed!"
+		exit 1
+	fi
+else
+	if ! docker build --platform linux/amd64 -f "$dockerfile" --build-arg BASE_IMAGE="$base_image" -t x64-linux "$script_dir"
+	then
+		f_echo "Container image generation failed!"
+		exit 1
+	fi
 fi
 
-f_echo "The Docker image was successfully generated."
+f_echo "The container image was successfully generated."

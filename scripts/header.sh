@@ -97,11 +97,20 @@ function wait_for_user_input {
 #   - Colima         (https://github.com/abiosoft/colima)
 # All of them provide the `docker` CLI, so everything below this file works
 # unchanged. Only Docker Desktop needs its settings adjusted (configure_docker.sh).
+#
+# This branch (ctn) additionally supports Apple's `container` CLI as an
+# experimental backend. Docker-compatible engines are preferred automatically;
+# set VIVADO_ENGINE=apple (or VIVADO_ENGINE=docker) to force an engine.
 # ---------------------------------------------------------------------------
 
 # Prints the engine the docker CLI currently uses:
 # docker-desktop | orbstack | colima | docker-other | none
 function detect_container_runtime {
+    if [ "${VIVADO_ENGINE:-}" = "apple" ]
+    then
+        echo "apple-container"
+        return 0
+    fi
     if command -v docker &> /dev/null
     then
         context=$(docker context show 2>/dev/null)
@@ -136,10 +145,65 @@ function detect_container_runtime {
         echo "colima"
         return 0
     fi
+    if [ "${VIVADO_ENGINE:-}" != "docker" ] && command -v container &> /dev/null
+    then
+        echo "apple-container"
+        return 0
+    fi
     echo "none"
 }
 
+# Prints the engine family: docker | apple | none
+function engine_kind {
+    case "$(detect_container_runtime)" in
+        apple-container)
+            echo "apple"
+            ;;
+        none)
+            echo "none"
+            ;;
+        *)
+            echo "docker"
+            ;;
+    esac
+}
+
+# Starts the Apple container services (experimental backend).
+function start_apple_container {
+    if ! command -v container &> /dev/null
+    then
+        f_echo "The Apple 'container' CLI is not installed."
+        f_echo "Download it from https://github.com/apple/container/releases"
+        f_echo "(requires macOS 26+ on Apple silicon) and run 'container system start'."
+        exit 1
+    fi
+    if container system status &> /dev/null
+    then
+        return 0
+    fi
+    f_echo "Starting Apple container services..."
+    container system start || exit 1
+    attempts=0
+    while ! container system status &> /dev/null
+    do
+        sleep 2
+        attempts=$((attempts + 1))
+        if [ "$attempts" -ge 60 ]
+        then
+            f_echo "Apple container services did not start in time."
+            exit 1
+        fi
+    done
+    sleep 2
+}
+
 function start_docker {
+    if [ "$(engine_kind)" = "apple" ]
+    then
+        start_apple_container
+        return 0
+    fi
+
     # A Docker-compatible engine provides the `docker` CLI.
     if ! command -v docker &> /dev/null
     then
@@ -210,10 +274,51 @@ function print_runtime_resource_hint {
             f_echo "Colima VM resources are fixed when it is started (8 CPUs / 16 GiB recommended):"
             f_echo "  colima stop && colima start --vm-type=vz --vz-rosetta --cpu 8 --memory 16"
             ;;
+        apple-container)
+            f_echo "Apple container resources are set per container (the scripts use 8 CPUs / 16 GiB)."
+            f_echo "Override them with VIVADO_CPUS / VIVADO_MEMORY."
+            ;;
         docker-desktop)
             f_echo "Adjust CPU/RAM/swap in Docker Desktop -> Settings -> Resources."
             ;;
     esac
+}
+
+# Returns true when the named container is running.
+function engine_is_running {
+    if [ "$(engine_kind)" = "apple" ]
+    then
+        container inspect "$1" 2>/dev/null | grep -Eq '"status"[[:space:]]*:[[:space:]]*"running"'
+    else
+        docker ps --filter "name=^$1$" --format '{{.Names}}' 2>/dev/null | grep -qx "$1"
+    fi
+}
+
+# Kills the named container (if it exists).
+function engine_kill {
+    if [ "$(engine_kind)" = "apple" ]
+    then
+        container kill "$1" &> /dev/null
+    else
+        docker kill "$1" &> /dev/null
+    fi
+}
+
+# Apple container needs a DNS entry to reach services running on the Mac
+# (Docker Desktop provides host.docker.internal automatically).
+function engine_ensure_host_alias {
+    if [ "$(engine_kind)" = "apple" ]
+    then
+        if ! container system dns list --quiet 2>/dev/null | grep -qx "host.container.internal"
+        then
+            f_echo "Creating host.container.internal for host access (requires sudo)..."
+            if ! sudo container system dns create host.container.internal --localhost 203.0.113.113
+            then
+                f_echo "Warning: host.container.internal was not created."
+                f_echo "USB/JTAG forwarding via xvcd will not work until it exists."
+            fi
+        fi
+    fi
 }
 
 function stop_docker {
