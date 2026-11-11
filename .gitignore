@@ -14,4 +14,8 @@ installer/
 .vnc/
 .xsession-errors
 scripts/install_bin
+scripts/hashes.local
+/hash
+/hash_source
+/installer_version
 .flexlmrc

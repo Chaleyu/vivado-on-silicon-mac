@@ -11,7 +11,7 @@ cd $script_dir/..
 to_remove=(".cache" ".dbus" ".local" ".vnc" "Xilinx" ".Xilinx"
 "Desktop" "installer" ".bash_history" ".lesshst" ".sudo_as_admin_successful"
 ".Xauthority" ".xsession-errors" ".XIC.lock" ".mozilla" ".java" ".config"
-".fontconfig" )
+".fontconfig" ".flexlmrc" "hash" "hash_source" )
 
 removed=0
 for file in ${to_remove[@]}
@@ -23,8 +23,10 @@ do
     fi
 done
 
-# Also clean setup artifacts written by setup.sh
-for artifact in "scripts/install_bin" "scripts/vnc_resolution"; do
+# Also clean setup artifacts written by setup.sh (the installer hash cache and
+# the install path). scripts/vnc_resolution is tracked by git and is rewritten by
+# setup.sh, so it is intentionally left alone.
+for artifact in "scripts/install_bin" "installer_version"; do
     if [ -f "$artifact" ]; then
         f_echo "Removing setup artifact: $artifact"
         rm -f "$artifact"

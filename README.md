@@ -1,7 +1,9 @@
 # vivado-on-silicon-mac
 This is a tool for installing [Vivado™](https://www.xilinx.com/support/download/index.html/content/xilinx/en/downloadNav/vivado-design-tools.html) on Arm®-based Apple Silicon Macs in a Rosetta-enabled virtual machine. It is in no way associated with Xilinx or AMD.
 
-*Updated for 2025.2!*
+**English | [简体中文](README_zh_cn.md)**
+
+*Updated for 2026.1!*
 
 The supported versions are:
 - 2021.1
@@ -10,12 +12,14 @@ The supported versions are:
 - 2023.2
 - 2024.1
 - 2024.2
-- **2025.2** (and 2025.2.1 patch)
+- 2025.1 (and 2025.1.1)
+- 2025.2 (and 2025.2.1)
+- 2026.1 (and 2026.1.1) — install configuration is initial, see the notes below
 
 ## Compatibility
-- **Apple Silicon**: M1, M2, M3, M4 and later chips are all supported.
-- **macOS**: macOS 15 (Sequoia) is recommended and tested. macOS 13 may work.  
-  ⚠️ Most versions of macOS 14 (Sonoma) are **not supported** due to Rosetta emulation bugs — the installer will warn you if you are on macOS 14.
+- **Apple Silicon**: M1, M2, M3, M4 and later chips are supported.
+- **macOS**: macOS 15 (Sequoia) or later is recommended. Most versions of macOS 14 (Sonoma) are **not supported** due to Rosetta emulation bugs — the installer will warn you if you are on macOS 14.
+- **Container engine**: Docker Desktop (default), [OrbStack](https://orbstack.dev/) or [Colima](https://github.com/abiosoft/colima). All three provide the `docker` command line, and the scripts detect and start the engine automatically.
 - The Docker container image is kept well under **8 GiB** (Vivado itself is installed to a bind-mounted folder, not inside the image).
 
 ## How to install
@@ -23,12 +27,17 @@ Expect the installation process to last about one to two hours and download ~20 
 About 30 minutes for the local installer (SFD).
 
 ### Preparations
-You first need to install [Docker®](https://www.docker.com/products/docker-desktop/) (make sure to choose "Apple Chip" instead of "Intel Chip"). You may find it useful to disable the option "Open Docker Dashboard when Docker Desktop starts".
+You first need a Docker-compatible container engine:
+
+- **Docker Desktop** (default): install [Docker Desktop](https://www.docker.com/products/docker-desktop/) and make sure to choose "Apple Chip" instead of "Intel Chip". You may find it useful to disable the option "Open Docker Dashboard when Docker Desktop starts".
+- **OrbStack**: install [OrbStack](https://orbstack.dev/). Rosetta emulation is enabled by default; the recommended memory limit for Vivado is set with `orb config set memory_mib 16384`.
+- **Colima**: `brew install colima docker`, then start it with `colima start --vm-type=vz --vz-rosetta --cpu 8 --memory 16`. The `--vz-rosetta` flag is required for the x86_64 emulation that Vivado needs.
 
 Rosetta must be installed on your Mac. The installer will ask you to install it if it is not already installed.
 
-You will also need the Vivado installer file (the "Linux® Self Extracting Web Installer" or the "SFD").
+You will also need the Vivado installer file: either the "Linux® Self Extracting Web Installer" (`.bin`) or the full "SFD" installer (`.tar` / `.tar.gz`).
 
+> AMD retires the online download files used by older web installers. The setup script warns you when a selected version is affected; for those releases use the SFD (full) installer, which contains all files.
 
 ### Installation
 1. Download this [tool](https://github.com/ichi4096/vivado-on-silicon-mac/archive/refs/heads/main.zip).
@@ -40,6 +49,8 @@ cd Downloads/vivado-on-silicon-mac-main
 caffeinate -dim zsh ./scripts/setup.sh
 ```
 5. Follow the instructions (in yellow) from the terminal.
+
+`setup.sh` starts the detected container engine and, for Docker Desktop, enables the Virtualization Framework, Rosetta emulation and a sufficient swap size automatically. For OrbStack and Colima it prints the recommended settings instead.
 
 Note that the installation requires You to log into Your AMD account. When asked to, allow "Terminal" to access data of other apps (the installation may succeed regardless).
 
@@ -54,7 +65,11 @@ USB flashing support is limited, see the "USB Connection" paragraph below.
 
 If you want to exchange files with the container, you need to store them inside the "vivado-on-silicon-mac-main" folder. Inside Vivado, the files will be accessible via the "/home/user" folder.
 
-You can allocate more/less memory and CPU resources to Vivado by going to the Resources tab in the Docker settings.
+Memory and CPU resources can be changed per engine:
+
+- Docker Desktop: Settings → Resources.
+- OrbStack: `orb config set memory_mib 16384` (CPU and memory can also be adjusted in the OrbStack app's Settings).
+- Colima: `colima stop && colima start --vm-type=vz --vz-rosetta --cpu 8 --memory 16`.
 
 ### Notes
 
@@ -62,7 +77,15 @@ If the installation fails or Vivado crashes, consider:
 - deleting the folder and go through the above steps again
 - establishing a more reliable internet connection
 - trying a different version of Vivado
-- increasing RAM / Swap / CPU allocations in the Docker settings.
+- increasing RAM / Swap / CPU allocations in the container engine settings.
+
+Installer hashes and the batch install configuration are specific to each Vivado release. If a supported installer is rejected, add its MD5 to `scripts/hashes.sh`. If the installer reports unknown module names for a version, regenerate `scripts/install_configs/<version>.txt` with `xsetup -b ConfigGen` as described at the top of that file.
+
+For a newly released Vivado version you can also create an untracked `scripts/hashes.local` (see `scripts/hashes.local.example`) with one line per installer: `<md5> <version-code> [web|sfd]`, for example `0123456789abcdef0123456789abcdef 202710`. This adds local support without editing the tracked hash list. If the installer hash is unknown, `setup.sh` additionally tries to detect the version from the installer file name and asks for confirmation (a matching install config must exist).
+
+Vivado changed its installation layout in 2025.1 (`Xilinx/<version>/Vivado/` instead of `Xilinx/Vivado/<version>/`), and 2026.1 and later may change it again. The start script checks the known layouts and then searches the installation directory, so layout changes are handled on a best-effort basis.
+
+The install configuration for 2026.1 is an initial configuration: its module family names match verified 2025.1/2025.2 ConfigGen outputs but were not verified against the 2026.1 installer. If the installer reports unknown modules, regenerate `scripts/install_configs/202610.txt` with `xsetup -b ConfigGen`.
 
 You may download via `git` instead of downloading the ZIP file and/or modify the scripts. The installation is wholly contained in the repository folder, which is exposed in the Docker container as the `/home/user` folder.
 
@@ -73,27 +96,36 @@ If you want to use additional Ubuntu packages, specify them in the Dockerfile. I
 
 ## How it works
 ### Docker, Rosetta & VNC
-This collection of scripts creates an x64 Docker container running **Ubuntu 24.04** Linux that is accelerated by [Rosetta 2](https://developer.apple.com/documentation/apple-silicon/about-the-rosetta-translation-environment) via the Apple Virtualization framework. The container has all the necessary libraries preinstalled for running Vivado. It is installed automatically given an installer file that the user must provide. GUI functionality is provided via VNC and the built-in "Screen Sharing" app.
+This collection of scripts creates an x64 Docker container running **Ubuntu 24.04** Linux that is accelerated by [Rosetta 2](https://developer.apple.com/documentation/apple-silicon/about-the-rosetta-translation-environment) via the Apple Virtualization framework. The container has all the necessary libraries preinstalled for running Vivado. It is installed automatically given an installer file that the user must provide. GUI functionality is provided via VNC and the built-in "Screen Sharing" app. Any Docker-compatible engine can run the container; Docker Desktop is the default and the only one whose settings are adjusted automatically.
 
 The Docker container image is kept under **8 GiB** — Vivado itself is installed to the host-side bind-mounted folder (`/home/user/Xilinx`) and is therefore not part of the image.
 
 ### Java heap limit
-Vivado and its installer are Java-based. The container sets `JAVA_TOOL_OPTIONS="-Xmx4096m -Xms512m"` so that the JVM heap is capped at **4 GiB**. This prevents out-of-memory kills during large syntheses and keeps overall memory consumption within the Docker resource limits you configure.
+Vivado and its installer are Java-based. The container sets `JAVA_TOOL_OPTIONS="-Xmx4096m -Xms512m"` so that the JVM heap is capped at **4 GiB**. This keeps the memory used by the Java-based installer and Vivado components within the Docker resource limits you configure. Synthesis runs in separate non-JVM processes, so this setting does not bound their memory usage.
 
 ### USB connection
-A drawback of the Apple Virtualization framework is that there is no implementation for USB forwarding as of when I'm writing this. Therefore, these scripts set up the [Xilinx Virtual Cable protocol](https://xilinx-wiki.atlassian.net/wiki/spaces/A/pages/644579329/Xilinx+Virtual+Cable). Intended to let a computer connect to an FPGA plugged into a remote computer, it allows for the host system to run an XVC server (in this case a software called [xvcd](https://github.com/tmbinc/xvcd) by Felix Domke), to which the docker container can connect.
+Vivado and `hw_server` only run inside the Linux container, so the FPGA's JTAG port has to be reached from there. These scripts use the [Xilinx Virtual Cable protocol](https://xilinx-wiki.atlassian.net/wiki/spaces/A/pages/644579329/Xilinx+Virtual+Cable) for that: the Mac runs an XVC server ([xvcd](https://github.com/tmbinc/xvcd) by Felix Domke) which forwards the JTAG traffic, and `hw_server` inside the container connects to it.
+
+Native USB passthrough is available through some engines but not through all of them:
+
+- **OrbStack** (2.2 or later) can attach USB devices to its Linux environment (`orb usb list`, then `orb usb attach <id>`; use dedicated passthrough for a JTAG cable). This native path is **not wired into the scripts yet**: containers do not always receive the `/dev/bus/usb` device nodes automatically, and `hw_server` needs raw libusb access. If you want to try it, attach the cable and verify that `lsusb` and `hw_server` see it inside the container; otherwise keep xvcd (the default). Please report results.
+- **Apple container** (`container` 1.7.x) has no USB/device passthrough option. macOS 27 adds the Accessory Access framework and `VZUSBPassthroughDeviceConfiguration` for Virtualization-based apps, but Apple's `container` CLI does not expose it yet, so xvcd is still required when using that engine.
+- **Docker Desktop and Colima** do not support USB device passthrough on macOS (Docker Desktop only documents USB/IP with a privileged container and a host-side USB/IP server), so xvcd is used there as well.
+
+Therefore xvcd remains the default for all engines. It is included in this repository.
 
 xvcd is contained in this repository, but with slight changes to make it compile on modern day macOS (compilation requires libusb and libftdi installed via homebrew, though there is a compiled version included). It runs continuously while the docker container is running.
 
 This version of xvcd only supports the FT2232C chip. There are forks of this software supporting other boards such as [xvcserver by Xilinx](https://github.com/Xilinx/XilinxVirtualCable).
 
 ## Files overview
-- `header.sh`: Common shell functions
+- `header.sh`: Common shell functions (including container engine detection)
 - `setup.sh`: Setup file, to be run once in the beginning
 - `start_container.sh`: Starts the container and "Screen Sharing" session
-- `configure_docker.sh`: Automatically set necessary Docker settings
+- `configure_docker.sh`: Automatically sets necessary Docker Desktop settings (skipped for OrbStack/Colima)
 - `gen_image.sh`: Generates the Docker image to be used according to the Dockerfile
 - `hashes.sh`: Contains the hashes of installer files and associated Vivado versions
+- `hashes.local`: Optional, untracked extra hashes for new Vivado releases (format shown in `hashes.local.example`)
 - `linux_start.sh`: Docker container start script
 - `de_start.sh`: Script to be executed when the desktop environment has started
 - `cleanup.sh`: Removes Vivado and dotfiles.

@@ -1,0 +1,12 @@
+# Optional, untracked local installer hashes for newly released Vivado versions.
+# Copy this file to `scripts/hashes.local` (same directory) and add one line per
+# installer, then re-run setup.sh. The file is git-ignored.
+#
+# Format: <32-char-hex-md5> <version-code> [web|sfd]
+#   - version-code uses the same convention as hashes.sh: 202510 = 2025.1
+#   - the third field is optional; "web" (the .bin web installer) is the default,
+#     use "sfd" for the full .tar/.tar.gz installer.
+#
+# Example entries (replace with the real values):
+# 0123456789abcdef0123456789abcdef 202710
+# fedcba9876543210fedcba9876543210 202710 sfd

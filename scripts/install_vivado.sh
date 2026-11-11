@@ -9,9 +9,32 @@ validate_linux
 install_bin_path=$(tr -d "\n\r\t " < "/home/user/scripts/install_bin")
 file_hash=$(tr -d "\n\r\t " < "/home/user/hash")
 
-set_vivado_version_from_hash "$file_hash"
+# setup.sh records the detected version. It is authoritative for installers whose
+# hash is not in the tracked list (e.g. a newer release detected from the file
+# name after explicit user confirmation).
+vivado_version=""
+if [ -f "/home/user/installer_version" ]; then
+    vivado_version=$(tr -d "\n\r\t " < "/home/user/installer_version")
+fi
+if [ -z "$vivado_version" ] || [ ! -f "/home/user/scripts/install_configs/${vivado_version}.txt" ]; then
+    if ! set_vivado_version_from_hash "$file_hash"; then
+        f_echo "Invalid installer hash. Add its MD5 to /home/user/scripts/hashes.sh"
+        exit 1
+    fi
+fi
 
-if [ "${install_bin_path##*.}" = "bin" ]; then
+installer_extension="${install_bin_path##*.}"
+installer_extension="${installer_extension,,}"
+
+# AMD retires the online files used by older web installers; warn early.
+if [ "$installer_extension" = "bin" ] && [ -n "$vivado_version" ] \
+&& [ -n "$web_installer_warn_before" ] && [ "$vivado_version" -lt "$web_installer_warn_before" ] 2>/dev/null; then
+    f_echo "Note: AMD marks older web installers as obsolete and may not provide"
+    f_echo "their online files anymore. If the download fails, use the SFD (full)"
+    f_echo "installer for Vivado $vivado_version instead."
+fi
+
+if [ "$installer_extension" = "bin" ]; then
     # Extract installer
     f_echo "Extracting installer"
     eval "$install_bin_path --target /home/user/installer --noexec"
@@ -23,15 +46,25 @@ if [ "${install_bin_path##*.}" = "bin" ]; then
         f_echo "Your account information seems to be wrong. Please try logging in again."
         sleep 1
     done
-elif [ "${install_bin_path##*.}" = "tar" ]; then
-    
+elif [ "$installer_extension" = "tar" ] || [ "$installer_extension" = "gz" ] || [ "$installer_extension" = "tgz" ]; then
+
     # Get AuthToken by repeating the following command until it succeeds
-    cd /home/user/installer
+    cd /home/user/installer || {
+        f_echo "The installer was not extracted to /home/user/installer. Run cleanup.sh and try again."
+        exit 1
+    }
+    if [ ! -x ./xsetup ]; then
+        f_echo "xsetup was not found in /home/user/installer. Run cleanup.sh and try again."
+        exit 1
+    fi
     while ! ./xsetup -b AuthTokenGen
     do
         f_echo "Your account information seems to be wrong. Please try logging in again."
         sleep 1
     done
+else
+    f_echo "Unsupported installer file type: $install_bin_path"
+    exit 1
 fi
 
 # Run installer

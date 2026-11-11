@@ -99,38 +99,89 @@ do
 		continue
 	fi
 
-	# check for stored hash, generate  if not
-	if [ -f "$script_dir/../hash" ]
+	# A previously computed hash is cached in the repository root to avoid hashing
+	# a large installer again. The cache is only reused for the exact same installer
+	# path, so a different installer can never be detected as the cached version.
+	hash_cache_path="$script_dir/../hash"
+	hash_source_path="$script_dir/../hash_source"
+	if [ -f "$hash_cache_path" ] && [ -f "$hash_source_path" ] \
+	&& [ "$(tr -d "\n\r" < "$hash_source_path")" = "$installation_binary" ]
 	then
-		f_echo "Using stored hash, delete "hash" and rerun if installer file has changed."
-		wait_for_user_input
-		file_hash=$(tr -d "\n\r\t " < "$script_dir/../hash")
+		f_echo "Reusing the stored hash for this installer."
+		file_hash=$(tr -d "\n\r\t " < "$hash_cache_path")
 	else
 		f_echo "Generating hash, this may take a while..."
 		file_hash=$(md5 -q "$installation_binary")
 	fi
 
-	# check if the hash is valid
-	set_vivado_version_from_hash "$file_hash"
-	if [ "$?" -eq 0 ]
+	# Check whether the hash is known. If it is not (a newer or re-packed
+	# installer), fall back to the version encoded in the file name, but only
+	# when an install config for that version exists and the user confirms.
+	detected_version=""
+	if set_vivado_version_from_hash "$file_hash"
 	then
 		f_echo "Valid file provided. Detected version $vivado_version"
-
-		# save hash calculaiton to save time in future for the same file
-		echo -n "$file_hash" > "$script_dir/../hash"
-		break
+	elif detected_version=$(version_from_installer_filename "$installation_binary") \
+	&& [ -n "$detected_version" ] \
+	&& [ -f "$script_dir/install_configs/$detected_version.txt" ]
+	then
+		f_echo "The installer hash is not in the supported list."
+		f_echo "The file name suggests Vivado $detected_version (newer release or re-packed installer)."
+		f_echo "Continue with Vivado $detected_version? [y/N]"
+		read unknown_hash_consent
+		case $unknown_hash_consent in
+		[yY]*)
+			vivado_version="$detected_version"
+			;;
+		*)
+			f_echo "File corrupted or version not supported."
+			continue
+			;;
+		esac
 	else
 		f_echo "File corrupted or version not supported."
+		f_echo "For a new Vivado release, add its installer MD5 to scripts/hashes.sh"
+		f_echo "(or an untracked scripts/hashes.local) and add scripts/install_configs/<version>.txt."
 		continue
 	fi
+
+	f_echo "Using Vivado version $vivado_version"
+
+	# AMD retires the online files used by older web installers, so their
+	# installation can fail while downloading. SFD (full) installers carry all
+	# files and do not have this problem.
+	case "${installation_binary:l}" in
+	*.bin)
+		if [ -n "$web_installer_warn_before" ] && [ "$vivado_version" -lt "$web_installer_warn_before" ] 2>/dev/null
+		then
+			f_echo "Note: AMD marks older web installers as obsolete and may not provide"
+			f_echo "their online files anymore, so this installation can fail while downloading."
+			f_echo "If that happens, use the SFD (full) installer for Vivado $vivado_version instead."
+		fi
+		;;
+	esac
+
+	# Save hash and version to speed up future runs and for the container.
+	echo -n "$file_hash" > "$hash_cache_path"
+	printf "%s" "$installation_binary" > "$hash_source_path"
+	echo -n "$vivado_version" > "$script_dir/../installer_version"
+	break
 done
 
-# extract tar in macos for speed
-if [ "${installation_binary##*.}" = "tar" ]; then
-    mkdir $script_dir/../installer
-	f_echo "Extracting tar, this may take a while..."
-    tar -xf "$installation_binary" -C "$script_dir/../installer" --strip-components 1
-fi
+# Extract the SFD installer on macOS for speed. AMD ships it either as a
+# plain .tar archive (e.g. 2024.2) or as a gzip-compressed .tar.gz (older versions).
+case "${installation_binary:l}" in
+*.tar|*.tar.gz|*.tgz|*.gz)
+	f_echo "Extracting the SFD installer, this may take a while..."
+	rm -rf "$script_dir/../installer"
+	mkdir -p "$script_dir/../installer"
+	if ! tar -xf "$installation_binary" -C "$script_dir/../installer" --strip-components 1
+	then
+		f_echo "Extracting the installer failed. Make sure there is enough free disk space."
+		exit 1
+	fi
+	;;
+esac
 
 # write file path to "install_bin"
 install_bin_path="${installation_binary#$parent_dir}"
@@ -164,11 +215,14 @@ then
 	exit 1
 fi
 
-# make sure that Docker is installed
+# make sure that a Docker-compatible container engine is installed and running
+# (Docker Desktop, OrbStack or Colima)
 start_docker
 
-# Attempt to enable Rosetta and set swap to at least 2GiB in Docker
+# Docker Desktop needs Rosetta/Virtualization Framework/swap configured;
+# OrbStack and Colima handle this themselves (configure_docker.sh prints hints).
 eval "$script_dir/configure_docker.sh"
+print_runtime_resource_hint
 
 # Generate the Docker image
 if ! eval "$script_dir/gen_image.sh"

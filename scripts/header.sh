@@ -6,6 +6,45 @@
 script_dir=$(dirname -- "$(readlink -nf $0)";)
 source "$script_dir/hashes.sh"
 
+# Optional, untracked additions for newly released installers. The file
+# scripts/hashes.local contains one entry per line:
+#   <32-char-hex-md5> <version-code> [web|sfd]
+# (web is the default). This keeps the tracked hash list clean while still
+# allowing immediate installs of a new release.
+if [ -f "$script_dir/hashes.local" ]
+then
+    while read -r local_hash local_version local_kind local_rest || [ -n "$local_hash" ]
+    do
+        # Tolerate CRLF line endings
+        local_hash=${local_hash%$'\r'}
+        local_version=${local_version%$'\r'}
+        local_kind=${local_kind%$'\r'}
+        case "$local_hash" in
+            ""|\#*)
+                continue
+                ;;
+        esac
+        if ! printf "%s" "$local_hash" | grep -Eq '^[0-9a-fA-F]{32}$' \
+        || ! printf "%s" "$local_version" | grep -Eq '^20[0-9][0-9][12]0$'
+        then
+            f_echo "Ignoring malformed line in scripts/hashes.local (expected: <md5> <version-code> [web|sfd])"
+            continue
+        fi
+        # Allow a trailing comment after the optional type
+        case "$local_kind" in
+            \#*)
+                local_kind=""
+                ;;
+        esac
+        if [ "$local_kind" = "sfd" ]
+        then
+            sfd_hashes[$local_hash]=$local_version
+        else
+            web_hashes[$local_hash]=$local_version
+        fi
+    done < "$script_dir/hashes.local"
+fi
+
 # echo with color
 function f_echo {
 	echo -e "\e[1m\e[33m$1\e[0m"
@@ -46,24 +85,132 @@ function wait_for_user_input {
     read
 }
 
-function start_docker {
-    # check if Docker is installed
-    if ! which docker &> /dev/null
+# ---------------------------------------------------------------------------
+# Container engine management
+#
+# The scripts work with any Docker-compatible engine on macOS:
+#   - Docker Desktop (default)
+#   - OrbStack       (https://orbstack.dev)
+#   - Colima         (https://github.com/abiosoft/colima)
+# All of them provide the `docker` CLI, so everything below this file works
+# unchanged. Only Docker Desktop needs its settings adjusted (configure_docker.sh).
+# ---------------------------------------------------------------------------
+
+# Prints the engine the docker CLI currently uses:
+# docker-desktop | orbstack | colima | docker-other | none
+function detect_container_runtime {
+    if command -v docker &> /dev/null
     then
-        f_echo "You need to install Docker Desktop first."
+        context=$(docker context show 2>/dev/null)
+        case "$context" in
+            orbstack)
+                echo "orbstack"
+                return 0
+                ;;
+            colima*)
+                echo "colima"
+                return 0
+                ;;
+        esac
+        if [ -n "$DOCKER_HOST" ]
+        then
+            echo "docker-other"
+            return 0
+        fi
+        if [ -d "/Applications/Docker.app" ] || [ "$context" = "desktop-linux" ]
+        then
+            echo "docker-desktop"
+            return 0
+        fi
+    fi
+    if [ -d "/Applications/OrbStack.app" ]
+    then
+        echo "orbstack"
+        return 0
+    fi
+    if command -v colima &> /dev/null
+    then
+        echo "colima"
+        return 0
+    fi
+    echo "none"
+}
+
+function start_docker {
+    # A Docker-compatible engine provides the `docker` CLI.
+    if ! command -v docker &> /dev/null
+    then
+        f_echo "No container engine was found. Install one of:"
+        f_echo "- Docker Desktop (default): https://www.docker.com/products/docker-desktop/"
+        f_echo "- OrbStack: https://orbstack.dev/"
+        f_echo "- Colima: brew install colima docker"
         exit 1
     fi
 
-    # Launch Docker daemon
-    f_echo "Launching Docker daemon..."
+    # Nothing to do when the engine is already running.
+    if docker ps &> /dev/null
+    then
+        return 0
+    fi
+
+    runtime=$(detect_container_runtime)
+    f_echo "Container engine: $runtime"
+    case "$runtime" in
+        orbstack)
+            f_echo "Starting OrbStack..."
+            open -a OrbStack &> /dev/null
+            ;;
+        colima)
+            f_echo "Starting Colima with Rosetta x86_64 emulation..."
+            f_echo "(resources can be overridden with VIVADO_CPUS / VIVADO_MEMORY)"
+            colima start --vm-type=vz --vz-rosetta \
+                --cpu "${VIVADO_CPUS:-8}" --memory "${VIVADO_MEMORY:-16}" || exit 1
+            ;;
+        docker-desktop)
+            f_echo "Launching Docker daemon..."
+            open -a Docker &> /dev/null
+            ;;
+        docker-other)
+            f_echo "Waiting for the container engine configured via DOCKER_HOST..."
+            ;;
+        *)
+            f_echo "Could not detect a container engine. Install Docker Desktop, OrbStack or Colima."
+            exit 1
+            ;;
+    esac
+
+    # Wait for the engine to accept connections (max. ~3 minutes).
     sleep 2
-    # Wait for Docker to start
+    attempts=0
     while ! docker ps &> /dev/null
     do
-        open -a Docker
         sleep 5
+        attempts=$((attempts + 1))
+        if [ "$attempts" -ge 36 ]
+        then
+            f_echo "The container engine did not start in time."
+            exit 1
+        fi
     done
     sleep 2
+}
+
+# Prints engine-specific hints for the memory/CPU settings Vivado needs.
+function print_runtime_resource_hint {
+    runtime=$(detect_container_runtime)
+    case "$runtime" in
+        orbstack)
+            f_echo "OrbStack memory limit (default 8 GiB; 16 GiB recommended for Vivado):"
+            f_echo "  orb config set memory_mib 16384"
+            ;;
+        colima)
+            f_echo "Colima VM resources are fixed when it is started (8 CPUs / 16 GiB recommended):"
+            f_echo "  colima stop && colima start --vm-type=vz --vz-rosetta --cpu 8 --memory 16"
+            ;;
+        docker-desktop)
+            f_echo "Adjust CPU/RAM/swap in Docker Desktop -> Settings -> Resources."
+            ;;
+    esac
 }
 
 function stop_docker {
@@ -74,6 +221,8 @@ function stop_docker {
 
 vivado_version=""
 
+# Sets vivado_version from an installer MD5. Returns 0 when the hash is known,
+# 1 otherwise (the caller decides what to do; this used to exit immediately).
 function set_vivado_version_from_hash {
     if [[ -v web_hashes[$1] ]]
     then
@@ -82,10 +231,26 @@ function set_vivado_version_from_hash {
     then
         vivado_version=${sfd_hashes[$1]}
     else
-        f_echo "Invalid installer hash"
-        exit 1
+        vivado_version=""
+        return 1
     fi
     return 0
+}
+
+# Tries to derive the version code (e.g. 202610) from an installer file name.
+# AMD installers contain a marker such as 2026.1 or 2024.2 in their name.
+# Prints the version code on success and returns 0, prints nothing and returns
+# 1 when the name does not contain a recognizable version.
+function version_from_installer_filename {
+    installer_name=$(basename "$1")
+    version_match=$(printf "%s\n" "$installer_name" | grep -Eo '20[0-9][0-9]\.[12]' | head -1)
+    if [ -z "$version_match" ]
+    then
+        return 1
+    fi
+    version_year=${version_match%%.*}
+    version_sub=${version_match##*.}
+    echo "${version_year}${version_sub}0"
 }
 
 # The actual resolution is stored in the file vnc_resolution

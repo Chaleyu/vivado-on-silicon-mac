@@ -9,10 +9,11 @@ ARG DEBIAN_FRONTEND=noninteractive
 # image well under 8 GiB.  Package notes for Ubuntu 24.04:
 #   - libtinfo5 / libncursesw5 are gone → replaced by libtinfo6 / libncursesw6
 #     (backward-compat symlinks are created in the next step)
-#   - libjpeg62-dev is gone → replaced by libjpeg-dev
+#   - libjpeg-dev provides the headers, while the libjpeg62 runtime is kept
+#     for Vivado components that link libjpeg.so.62
 #   - libgtk2.0-0 is now libgtk2.0-0t64 (64-bit time_t transition)
 #   - firefox removed (large, not needed inside the container)
-#   - libswt-gtk-4-jni removed (bundled inside Vivado 2025.x)
+#   - libswt-gtk-4-jni is kept for Vivado releases <= 2024.x (2025.x bundles its own)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         # Core utilities
@@ -30,10 +31,10 @@ RUN apt-get update && \
         # Vivado build and runtime dependencies
         python3-pip python3-dev build-essential git \
         gcc-multilib g++ \
-        ocl-icd-opencl-dev libjpeg-dev libc6-dev-i386 \
+        ocl-icd-opencl-dev libjpeg-dev libjpeg62 libc6-dev-i386 \
         graphviz make unzip \
-        # ncurses / terminal libs (Ubuntu 24.04 names)
-        libtinfo6 libncurses6 libncursesw6 \
+        # ncurses / terminal libs (Ubuntu 24.04 names), SWT for older Vivado releases
+        libtinfo6 libncurses6 libncursesw6 libswt-gtk-4-jni \
         # GTK2 runtime required by Vivado GUI (t64 transition package in 24.04)
         libgtk2.0-0t64 \
         # Locale support (Vivado crashes without a proper locale)
@@ -87,8 +88,10 @@ ENV JAVA_TOOL_OPTIONS="-Xmx4096m -Xms512m"
 
 # LD_PRELOAD workaround for Vivado stability under Rosetta 2.
 # - libudev / libselinux / libz: prevent crashes during synthesis
-# - libgdk-x11-2.0: prevents GUI crashes on startup
-# NOTE: libgdk moved to /usr/lib in Ubuntu 24.04 (libgtk2.0-0t64 package).
-# de_start.sh resolves the exact path at runtime to handle any layout variation.
-ENV LD_PRELOAD="/lib/x86_64-linux-gnu/libudev.so.1 /lib/x86_64-linux-gnu/libselinux.so.1 /lib/x86_64-linux-gnu/libz.so.1"
+# - libgdk-x11-2.0: prevents GUI crashes on startup (also needed when Vivado is
+#   launched from a desktop shortcut, i.e. without de_start.sh)
+# NOTE: libgdk lives in /usr/lib on Ubuntu 24.04 (libgtk2.0-0t64); the image is
+# pinned to 24.04, so the static path below is stable. de_start.sh additionally
+# resolves the path at runtime.
+ENV LD_PRELOAD="/lib/x86_64-linux-gnu/libudev.so.1 /lib/x86_64-linux-gnu/libselinux.so.1 /lib/x86_64-linux-gnu/libz.so.1 /usr/lib/x86_64-linux-gnu/libgdk-x11-2.0.so.0"
 
