@@ -67,19 +67,75 @@ else
     exit 1
 fi
 
+# Make sure an install configuration exists for this version. Old and very new
+# releases may not have a tracked configuration yet; in that case let the
+# installer generate one with ConfigGen. ConfigGen is interactive (choose the
+# edition and the output file), so it runs in the terminal and the generated
+# selection can be reviewed before the installation starts.
+config_file="/home/user/scripts/install_configs/${vivado_version}.txt"
+if [ ! -f "$config_file" ]; then
+    f_echo "No install configuration for Vivado ${vivado_version} yet."
+    f_echo "Generating one with 'xsetup -b ConfigGen' (follow the prompts)..."
+    if ! cd /home/user/installer; then
+        f_echo "The installer was not extracted to /home/user/installer."
+        exit 1
+    fi
+    configgen_marker="/tmp/.configgen_started"
+    touch "$configgen_marker"
+    if ! ./xsetup -b ConfigGen; then
+        f_echo "Could not generate an install configuration for ${vivado_version}."
+        exit 1
+    fi
+    generated_config=""
+    for candidate in /home/user/.Xilinx/install_config.txt \
+                     /home/user/install_config.txt \
+                     /home/user/installer/install_config.txt
+    do
+        if [ -f "$candidate" ]; then
+            generated_config="$candidate"
+            break
+        fi
+    done
+    if [ -z "$generated_config" ]; then
+        generated_config=$(find /home/user -maxdepth 3 -type f -name 'install_config*.txt' -newer "$configgen_marker" 2>/dev/null | head -1)
+    fi
+    if [ -z "$generated_config" ]; then
+        f_echo "Could not find the file ConfigGen created."
+        f_echo "Enter the path to the generated configuration file:"
+        read -r generated_config
+    fi
+    if [ -z "$generated_config" ] || [ ! -f "$generated_config" ]; then
+        f_echo "No install configuration available for ${vivado_version}."
+        exit 1
+    fi
+    # The generated file installs to the default path; keep Vivado on the Mac.
+    sed -i 's|^Destination=.*|Destination=/home/user/Xilinx|' "$generated_config"
+    config_file="$generated_config"
+    if cp "$generated_config" "/home/user/scripts/install_configs/${vivado_version}.txt" 2>/dev/null
+    then
+        config_file="/home/user/scripts/install_configs/${vivado_version}.txt"
+        f_echo "Saved the generated configuration to scripts/install_configs/${vivado_version}.txt"
+        f_echo "Review or customise it (e.g. enable only the device families you need),"
+        f_echo "then press Enter to continue."
+        read
+    fi
+fi
+
 # Run installer
 f_echo "You successfully logged into your account. The installation will begin now."
 eula_args="XilinxEULA,3rdPartyEULA"
 
-# Check if the version is 202110 to include WebTalk terms
-if [ "$vivado_version" = "202110" ]; then
+# 2021.1 and 2019.2 enable WebTalk data collection, which needs an extra EULA flag
+case "$vivado_version" in
+201920|202110)
     eula_args="${eula_args},WebTalkTerms"
-    f_echo "Note: The 2021.1 version enables WebTalk data collection and agrees automatically to the corresponding terms."
+    f_echo "Note: Vivado ${vivado_version} enables WebTalk data collection and agrees automatically to the corresponding terms."
     f_echo "For more information, see: https://docs.amd.com/r/2021.1-English/ug973-vivado-release-notes-install-license/WebTalk-Participation"
     wait_for_user_input
-fi
+    ;;
+esac
 
-if /home/user/installer/xsetup -c "/home/user/scripts/install_configs/${vivado_version}.txt" -b Install -a "${eula_args}"
+if /home/user/installer/xsetup -c "$config_file" -b Install -a "${eula_args}"
 then
     f_echo "Vivado was successfully installed."
     # Remove the extracted installer — it is ~1 GB and no longer needed.

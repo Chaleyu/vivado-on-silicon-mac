@@ -6,7 +6,9 @@
 *已更新至 2026.1！*
 
 支持的版本：
+- 2019.2（仅支持 SFD，使用 legacy 镜像）
 - 2021.1
+- 2021.2（仅支持 SFD，使用 legacy 镜像）
 - 2022.2
 - 2023.1
 - 2023.2
@@ -85,6 +87,8 @@ USB 烧录支持有限，请参考下方 "USB 连接" 段落。
 
 Vivado 在 2025.1 更改了安装目录结构（`Xilinx/<version>/Vivado/`，而不再是 `Xilinx/Vivado/<version>/`），2026.1 及之后版本还可能再次调整。启动脚本会先检查已知的目录结构，然后搜索安装目录，因此会尽力适配目录布局的变化。
 
+Vivado 2021.2 及更早版本只支持 Ubuntu 20.04 或更早系统。对于这些版本，`gen_image.sh` 会自动构建 `Dockerfile.legacy`（Ubuntu 20.04），而不是默认的 Ubuntu 24.04 镜像。这些旧版本的测试程度低于新版本；2019.2/2021.2 的安装配置来自真实 ConfigGen 输出，但尚未在本仓库做过端到端验证。如果安装器报告未知模块名，可在安装脚本提示时用 `xsetup -b ConfigGen` 重新生成配置（当某个版本没有随仓库提供的配置时，安装脚本现在会自动这样做）。
+
 2026.1 的安装配置是初版：其模块系列名称与已核实的 2025.1/2025.2 ConfigGen 输出一致，但尚未在 2026.1 安装器上验证。如果安装器报告未知模块，请用 `xsetup -b ConfigGen` 重新生成 `scripts/install_configs/202610.txt`。
 
 你也可以通过 `git` 而不只是 ZIP 文件下载本项目，并修改脚本。整个安装过程都包含在仓库目录内，该目录在 Docker 容器中映射为 `/home/user`。
@@ -123,7 +127,8 @@ xvcd 已包含在本仓库中，但做了少量修改使其能在现代 macOS �
 - `setup.sh`：安装设置脚本，只需在开始时运行一次
 - `start_container.sh`：启动容器和 "屏幕共享" 会话
 - `configure_docker.sh`：自动设置必要的 Docker Desktop 选项（OrbStack/Colima 下会跳过）
-- `gen_image.sh`：根据 Dockerfile 生成要使用的 Docker 镜像
+- `gen_image.sh`：根据 Dockerfile 生成要使用的 Docker 镜像（Vivado <= 2021.2 使用 legacy 镜像）
+- `Dockerfile.legacy`：Vivado <= 2021.2 自动使用的 Ubuntu 20.04 镜像
 - `hashes.sh`：包含安装器文件哈希及其对应的 Vivado 版本
 - `hashes.local`：可选的、不被 git 跟踪的额外哈希，用于新 Vivado 版本（格式见 `hashes.local.example`）
 - `linux_start.sh`：Docker 容器启动脚本

@@ -1,0 +1,14 @@
+Upstream: https://github.com/tmbinc/xvcd
+Synced commit: e24745d5fe29b52d30e5c08cda4f2ecdf4909abb (2025-03-06, "Compilation fix (#11)")
+
+Local modifications kept on top of upstream:
+- src/Makefile: macOS/homebrew build support (include path, IOKit/CoreFoundation/
+  Security frameworks, static libftdi1/libusb-1.0 linking, -Wno-deprecated).
+- bin/xvcd: prebuilt arm64 binary produced with the above Makefile. It was built
+  from the source before the e24745d compilation fix; the fix only replaces
+  ftdi_usb_purge_buffers() with the equivalent ftdi_tcioflush(), so the binary is
+  functionally unchanged. Rebuild with:
+      brew install libftdi libusb
+      make -C src O=..   # from this directory
+
+Source files are otherwise unmodified upstream files.

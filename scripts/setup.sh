@@ -224,7 +224,9 @@ start_docker
 eval "$script_dir/configure_docker.sh"
 print_runtime_resource_hint
 
-# Generate the Docker image
+# Generate the Docker image (the detected version selects the legacy image for
+# old Vivado releases)
+export VIVADO_VERSION="$vivado_version"
 if ! eval "$script_dir/gen_image.sh"
 then
 	exit 1
