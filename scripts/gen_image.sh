@@ -8,25 +8,42 @@ validate_macos
 
 start_docker
 
-# Vivado <= 2021.2 is only supported on Ubuntu <= 20.04, so use the legacy
-# Dockerfile for those versions. Override with VIVADO_DOCKERFILE=/path/to/Dockerfile.
-dockerfile="${VIVADO_DOCKERFILE:-}"
-if [ -z "$dockerfile" ]
+# Pick the newest Ubuntu base image officially supported by that Vivado release:
+#   2019.2        -> 18.04 (16.04 is older and not used)
+#   2021.1-2022.1 -> 20.04
+#   2022.2-2024.1 -> 22.04
+#   2024.2+       -> 24.04
+# Override with VIVADO_BASE_IMAGE or VIVADO_DOCKERFILE.
+# Override with VIVADO_DOCKERFILE=/path/to/Dockerfile or VIVADO_BASE_IMAGE.
+base_image="${VIVADO_BASE_IMAGE:-}"
+if [ -z "$base_image" ]
 then
 	case "${VIVADO_VERSION:-}" in
-	2019*|2020*|2021*)
-		dockerfile="$script_dir/Dockerfile.legacy"
+	"")
+		base_image="ubuntu:22.04"
 		;;
 	*)
-		dockerfile="$script_dir/Dockerfile"
+		if [ "$VIVADO_VERSION" = "201920" ] 2>/dev/null
+		then
+			base_image="ubuntu:18.04"
+		elif [ "$VIVADO_VERSION" -lt 202220 ] 2>/dev/null
+		then
+			base_image="ubuntu:20.04"
+		elif [ "$VIVADO_VERSION" -lt 202420 ] 2>/dev/null
+		then
+			base_image="ubuntu:22.04"
+		else
+			base_image="ubuntu:24.04"
+		fi
 		;;
 	esac
 fi
-f_echo "Using Dockerfile: $dockerfile"
+dockerfile="${VIVADO_DOCKERFILE:-$script_dir/Dockerfile}"
+f_echo "Using Dockerfile: $dockerfile (base image: $base_image)"
 
 # Build the Docker image according to the Dockerfile
 f_echo "Building Docker image..."
-if ! docker build --platform linux/amd64 -f "$dockerfile" -t x64-linux "$script_dir"
+if ! docker build --platform linux/amd64 -f "$dockerfile" --build-arg BASE_IMAGE="$base_image" -t x64-linux "$script_dir"
 then
 	f_echo "Docker image generation failed!"
 	exit 1

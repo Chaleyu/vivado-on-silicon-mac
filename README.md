@@ -5,25 +5,32 @@ This is a tool for installing [Vivado™](https://www.xilinx.com/support/downloa
 
 *Updated for 2026.1!*
 
-The supported versions are:
-- 2019.2 (SFD only, legacy image)
-- 2021.1
-- 2021.2 (SFD only, legacy image)
-- 2022.1 (SFD only, legacy image)
-- 2022.2
-- 2023.1
-- 2023.2
-- 2024.1
-- 2024.2
-- 2025.1 (and 2025.1.1)
-- 2025.2 (and 2025.2.1)
-- 2026.1 (and 2026.1.1) — install configuration is initial, see the notes below
+## Supported versions
+
+| Vivado | Web installer | SFD installer | Ubuntu image | Real-machine test status |
+|---|---|---|---|---|
+| 2019.2 | ❌ retired | ✅ available | 18.04 | ⚠️ not tested |
+| 2021.1 | ❌ retired | ✅ available | 20.04 | 🔶 upstream support only |
+| 2021.2 | ❌ retired | ✅ available | 20.04 | ⚠️ not tested |
+| 2022.1 | ❌ retired | ✅ available | 20.04 | ⚠️ not tested |
+| 2022.2 | ❌ retired | ✅ available | 22.04 | 🔶 upstream README only |
+| 2023.1 | ❌ retired | ✅ available | 22.04 | 🔶 upstream README only |
+| 2023.2 | ❌ retired | ✅ available | 22.04 | 🔶 upstream README only |
+| 2024.1 | ✅ available | ✅ available | 22.04 | 🔶 upstream README only |
+| 2024.2 (2024.2.2) | ✅ available | ✅ available | 24.04 | 🔶 PR #68 author tested (old image) |
+| 2025.1 (2025.1.1) | ✅ available | ✅ available | 24.04 | 🔶 third-party fork usage |
+| 2025.2 (2025.2.1) | ✅ available | ✅ available | 24.04 | 🔶 PR #83 author claims tested (old image) |
+| 2026.1 (2026.1.1) | ✅ available | ✅ available | 24.04 | ⚠️ not tested |
+
+Legend: ❌ "retired" = AMD's web installer for that release is obsolete and rejected by the scripts (use the SFD `.tar`/`.tar.gz`). 🔶 = historical or third-party report, **not** verified with the current images / install-time configuration; ⚠️ = no test data.
+
+Every release uses the **newest Ubuntu version that AMD officially supports** for it: 2019.2 → 18.04 (16.04 is older and not used), 2021.1/2021.2/2022.1 → 20.04, 2022.2–2024.1 → 22.04, 2024.2+ → 24.04. Override for experiments with `VIVADO_BASE_IMAGE=ubuntu:<version>`. **No version has been end-to-end verified on real hardware with the current code in this fork yet** — please report results.
 
 ## Compatibility
 - **Apple Silicon**: M1, M2, M3, M4 and later chips are supported.
 - **macOS**: macOS 15 (Sequoia) or later is recommended. Most versions of macOS 14 (Sonoma) are **not supported** due to Rosetta emulation bugs — the installer will warn you if you are on macOS 14.
 - **Container engine**: Docker Desktop (default), [OrbStack](https://orbstack.dev/) or [Colima](https://github.com/abiosoft/colima). All three provide the `docker` command line, and the scripts detect and start the engine automatically.
-- The Docker container image is kept well under **8 GiB** (Vivado itself is installed to a bind-mounted folder, not inside the image).
+- The Docker container image is kept well under **8 GiB** (Vivado itself is installed to a bind-mounted folder, not inside the image). The base image is selected automatically: Ubuntu 18.04 for 2019.2, Ubuntu 20.04 for 2021.1–2022.1, Ubuntu 22.04 for 2022.2–2024.1, Ubuntu 24.04 for 2024.2+.
 
 ## How to install
 Expect the installation process to last about one to two hours and download ~20 GB for the web installer.
@@ -88,7 +95,9 @@ For a newly released Vivado version you can also create an untracked `scripts/ha
 
 Vivado changed its installation layout in 2025.1 (`Xilinx/<version>/Vivado/` instead of `Xilinx/Vivado/<version>/`), and 2026.1 and later may change it again. The start script checks the known layouts and then searches the installation directory, so layout changes are handled on a best-effort basis.
 
-Vivado 2021.2 and older are only supported on Ubuntu 20.04 or older. For those versions `gen_image.sh` automatically builds `Dockerfile.legacy` (Ubuntu 20.04) instead of the default Ubuntu 24.04 image. These old releases are less tested than the current ones; the 2019.2 and 2021.2 install configurations were taken from genuine ConfigGen outputs but have not been verified end-to-end here. If the installer reports unknown module names, regenerate the configuration with `xsetup -b ConfigGen` when prompted (the install script now does this automatically when a version has no tracked configuration).
+**One Dockerfile, four Ubuntu bases.** The base image is chosen per Vivado version as the newest Ubuntu AMD officially supports for it: 18.04 for 2019.2, 20.04 for 2021.1/2021.2/2022.1, 22.04 for 2022.2–2024.1, and 24.04 for 2024.2+. `gen_image.sh` passes `--build-arg BASE_IMAGE=ubuntu:<version>`; the Dockerfile installs the packages common to all supported releases and then applies release-specific steps (ncurses5/libjpeg62/libssl1.1 vs t64 packages, TigerVNC tool layout, `.so.5` compatibility symlinks) inside conditional `RUN` steps. This keeps one file to maintain while every release runs on its best-supported Ubuntu. Override with `VIVADO_BASE_IMAGE` or `VIVADO_DOCKERFILE`.
+
+Caveats: the Docker tags resolve to 18.04.6/22.04.5/24.04.x, slightly newer patch releases than some old matrices list (patch-level compatibility is expected). The 22.04 image also installs the focal `libssl1.1` package because some 2022.x/2023.x binaries still link against it. Ubuntu 18.04 is end-of-life for standard support; archive.ubuntu.com still serves bionic (as of 2026).
 
 The built-in device-family catalogs for 2026.1 (and the exact selection for 2019.2/2021.2) have not been verified against real installers here. If the installer reports unknown module names, choose option 5 ("ConfigGen") in the install-time menu to let the installer generate the selection for that exact release.
 
@@ -101,7 +110,7 @@ If you want to use additional Ubuntu packages, specify them in the Dockerfile. I
 
 ## How it works
 ### Docker, Rosetta & VNC
-This collection of scripts creates an x64 Docker container running **Ubuntu 24.04** Linux that is accelerated by [Rosetta 2](https://developer.apple.com/documentation/apple-silicon/about-the-rosetta-translation-environment) via the Apple Virtualization framework. The container has all the necessary libraries preinstalled for running Vivado. It is installed automatically given an installer file that the user must provide. GUI functionality is provided via VNC and the built-in "Screen Sharing" app. Any Docker-compatible engine can run the container; Docker Desktop is the default and the only one whose settings are adjusted automatically.
+This collection of scripts creates an x64 Docker container running **Ubuntu 22.04** Linux (Ubuntu 18.04 or 24.04 depending on the Vivado version) that is accelerated by [Rosetta 2](https://developer.apple.com/documentation/apple-silicon/about-the-rosetta-translation-environment) via the Apple Virtualization framework. The container has all the necessary libraries preinstalled for running Vivado. It is installed automatically given an installer file that the user must provide. GUI functionality is provided via VNC and the built-in "Screen Sharing" app. Any Docker-compatible engine can run the container; Docker Desktop is the default and the only one whose settings are adjusted automatically.
 
 The Docker container image is kept under **8 GiB** — Vivado itself is installed to the host-side bind-mounted folder (`/home/user/Xilinx`) and is therefore not part of the image.
 
@@ -128,8 +137,8 @@ This version of xvcd only supports the FT2232C chip. There are forks of this sof
 - `setup.sh`: Setup file, to be run once in the beginning
 - `start_container.sh`: Starts the container and "Screen Sharing" session
 - `configure_docker.sh`: Automatically sets necessary Docker Desktop settings (skipped for OrbStack/Colima)
-- `gen_image.sh`: Generates the Docker image to be used according to the Dockerfile (legacy images for old Vivado releases)
-- `Dockerfile.legacy`: Legacy Ubuntu image used automatically for Vivado <= 2021.2
+- `gen_image.sh`: Generates the Docker image and selects the Ubuntu base for the detected Vivado version
+- `Dockerfile`: Single image definition; the `BASE_IMAGE` build arg selects Ubuntu 18.04 / 20.04 / 22.04 / 24.04
 - `install_vivado.sh`: Runs the installer and generates the batch install configuration (device-family selection) at install time
 - `hashes.sh`: Contains the hashes of installer files and associated Vivado versions
 - `hashes.local`: Optional, untracked extra hashes for new Vivado releases (format shown in `hashes.local.example`)

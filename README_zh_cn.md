@@ -5,25 +5,32 @@
 
 *已更新至 2026.1！*
 
-支持的版本：
-- 2019.2（仅支持 SFD，使用 legacy 镜像）
-- 2021.1
-- 2021.2（仅支持 SFD，使用 legacy 镜像）
-- 2022.1（仅支持 SFD，使用 legacy 镜像）
-- 2022.2
-- 2023.1
-- 2023.2
-- 2024.1
-- 2024.2
-- 2025.1（以及 2025.1.1）
-- 2025.2（以及 2025.2.1）
-- 2026.1（以及 2026.1.1）——安装配置为初版，见下方说明
+## 支持版本
+
+| Vivado | Web 安装器 | SFD 安装器 | Ubuntu 镜像 | 实机测试状态 |
+|---|---|---|---|---|
+| 2019.2 | ❌ 已过期 | ✅ 可用 | 18.04 | ⚠️ 未测试 |
+| 2021.1 | ❌ 已过期 | ✅ 可用 | 20.04 | 🔶 仅上游支持记录 |
+| 2021.2 | ❌ 已过期 | ✅ 可用 | 20.04 | ⚠️ 未测试 |
+| 2022.1 | ❌ 已过期 | ✅ 可用 | 20.04 | ⚠️ 未测试 |
+| 2022.2 | ❌ 已过期 | ✅ 可用 | 22.04 | 🔶 仅上游 README 声明 |
+| 2023.1 | ❌ 已过期 | ✅ 可用 | 22.04 | 🔶 仅上游 README 声明 |
+| 2023.2 | ❌ 已过期 | ✅ 可用 | 22.04 | 🔶 仅上游 README 声明 |
+| 2024.1 | ✅ 可用 | ✅ 可用 | 22.04 | 🔶 仅上游 README 声明 |
+| 2024.2（2024.2.2） | ✅ 可用 | ✅ 可用 | 24.04 | 🔶 PR #68 作者称已测（旧镜像） |
+| 2025.1（2025.1.1） | ✅ 可用 | ✅ 可用 | 24.04 | 🔶 第三方 fork 使用记录 |
+| 2025.2（2025.2.1） | ✅ 可用 | ✅ 可用 | 24.04 | 🔶 PR #83 作者称已测（旧镜像） |
+| 2026.1（2026.1.1） | ✅ 可用 | ✅ 可用 | 24.04 | ⚠️ 未测试 |
+
+说明：❌ "已过期" 表示 AMD 已停用该版本的 web 安装器，脚本会拒绝并提示改用 SFD（`.tar`/`.tar.gz`）。🔶 表示历史/第三方记录，**未**用当前镜像和安装时配置验证；⚠️ 表示没有测试数据。
+
+每个版本都使用 **AMD 官方支持的最新 Ubuntu**：2019.2 → 18.04（16.04 更旧，不采用），2021.1/2021.2/2022.1 → 20.04，2022.2–2024.1 → 22.04，2024.2+ → 24.04。实验时可临时用 `VIVADO_BASE_IMAGE=ubuntu:<版本>` 覆盖。**本 fork 目前尚未有任何版本在真机上完成当前代码的端到端验证**，欢迎反馈测试结果。
 
 ## 兼容性
 - **Apple Silicon**：支持 M1、M2、M3、M4 及更新芯片。
 - **macOS**：推荐 macOS 15（Sequoia）或更新版本。由于 Rosetta 模拟存在缺陷，大多数 macOS 14（Sonoma）版本**不受支持**——如果检测到 macOS 14，安装脚本会给出警告。
 - **容器引擎**：Docker Desktop（默认）、[OrbStack](https://orbstack.dev/) 或 [Colima](https://github.com/abiosoft/colima)。三者都提供 `docker` 命令行，脚本会自动检测并启动对应的容器引擎。
-- Docker 容器镜像保持在 **8 GiB** 以内（Vivado 本身安装在绑定挂载的目录中，不在镜像内）。
+- Docker 容器镜像保持在 **8 GiB** 以内（Vivado 本身安装在绑定挂载的目录中，不在镜像内）。基础镜像会自动选择：2019.2 用 Ubuntu 18.04，2021.1–2022.1 用 Ubuntu 20.04，2022.2–2024.1 用 Ubuntu 22.04，2024.2 及以上用 Ubuntu 24.04。
 
 ## 如何安装
 预计安装过程需要一到两个小时，Web 安装器需要下载约 20 GB 数据。
@@ -88,7 +95,9 @@ USB 烧录支持有限，请参考下方 "USB 连接" 段落。
 
 Vivado 在 2025.1 更改了安装目录结构（`Xilinx/<version>/Vivado/`，而不再是 `Xilinx/Vivado/<version>/`），2026.1 及之后版本还可能再次调整。启动脚本会先检查已知的目录结构，然后搜索安装目录，因此会尽力适配目录布局的变化。
 
-Vivado 2021.2 及更早版本只支持 Ubuntu 20.04 或更早系统。对于这些版本，`gen_image.sh` 会自动构建 `Dockerfile.legacy`（Ubuntu 20.04），而不是默认的 Ubuntu 24.04 镜像。这些旧版本的测试程度低于新版本；2019.2/2021.2 的安装配置来自真实 ConfigGen 输出，但尚未在本仓库做过端到端验证。如果安装器报告未知模块名，可在安装脚本提示时用 `xsetup -b ConfigGen` 重新生成配置（当某个版本没有随仓库提供的配置时，安装脚本现在会自动这样做）。
+**一个 Dockerfile，四套 Ubuntu 基础镜像。** 每个版本都选择 AMD 官方支持的、尽可能新的 Ubuntu：2019.2 用 18.04，2021.1/2021.2/2022.1 用 20.04，2022.2–2024.1 用 22.04，2024.2+ 用 24.04。`gen_image.sh` 通过 `--build-arg BASE_IMAGE=ubuntu:<版本>` 传入；Dockerfile 先安装各发行版共有的软件包，再用条件 `RUN` 处理版本差异（ncurses5/libjpeg62/libssl1.1 或 t64 包、TigerVNC 工具布局、`.so.5` 兼容符号链接）。这样只需维护一个文件，同时每个版本都运行在官方支持且尽量新的 Ubuntu 上。可用 `VIVADO_BASE_IMAGE` 或 `VIVADO_DOCKERFILE` 覆盖。
+
+注意：Docker tag 实际对应 18.04.6/22.04.5/24.04.x，比部分旧矩阵列出的补丁版本略新，预计补丁级兼容。22.04 镜像还会安装 focal 的 `libssl1.1`，因为部分 2022.x/2023.x 二进制仍依赖它。Ubuntu 18.04 已结束标准支持；截至 2026 年 archive.ubuntu.com 仍提供 bionic 源。
 
 2026.1 的内置器件系列目录（以及 2019.2/2021.2 的具体选择）尚未在真实安装器上验证。如果安装器报告未知模块，请在安装时选择菜单的第 5 项（"ConfigGen"），让安装器针对该版本生成选择。
 
@@ -101,7 +110,7 @@ Vivado 2021.2 及更早版本只支持 Ubuntu 20.04 或更早系统。对于这�
 
 ## 工作原理
 ### Docker、Rosetta 与 VNC
-这些脚本会创建一个运行 **Ubuntu 24.04** Linux 的 x64 Docker 容器，并通过 Apple Virtualization framework 使用 [Rosetta 2](https://developer.apple.com/documentation/apple-silicon/about-the-rosetta-translation-environment) 加速。容器内预装了运行 Vivado 所需的全部库。只要用户提供安装器文件，Vivado 就会被自动安装。图形界面通过 VNC 和系统自带的 "屏幕共享" 应用提供。任何兼容 Docker 的容器引擎都可以运行该容器；Docker Desktop 是默认引擎，也是唯一会自动修改其设置的引擎。
+这些脚本会创建一个运行 **Ubuntu 22.04** Linux 的 x64 Docker 容器（根据 Vivado 版本也可能是 Ubuntu 18.04 或 24.04），并通过 Apple Virtualization framework 使用 [Rosetta 2](https://developer.apple.com/documentation/apple-silicon/about-the-rosetta-translation-environment) 加速。容器内预装了运行 Vivado 所需的全部库。只要用户提供安装器文件，Vivado 就会被自动安装。图形界面通过 VNC 和系统自带的 "屏幕共享" 应用提供。任何兼容 Docker 的容器引擎都可以运行该容器；Docker Desktop 是默认引擎，也是唯一会自动修改其设置的引擎。
 
 Docker 容器镜像保持在 **8 GiB** 以内——Vivado 安装在宿主机侧绑定挂载的目录（`/home/user/Xilinx`）中，因此不包含在镜像内。
 
@@ -128,8 +137,8 @@ xvcd 已包含在本仓库中，但做了少量修改使其能在现代 macOS �
 - `setup.sh`：安装设置脚本，只需在开始时运行一次
 - `start_container.sh`：启动容器和 "屏幕共享" 会话
 - `configure_docker.sh`：自动设置必要的 Docker Desktop 选项（OrbStack/Colima 下会跳过）
-- `gen_image.sh`：根据 Dockerfile 生成要使用的 Docker 镜像（旧版 Vivado 使用 legacy 镜像）
-- `Dockerfile.legacy`：Vivado <= 2021.2 自动使用的 legacy Ubuntu 镜像
+- `gen_image.sh`：生成 Docker 镜像，并根据检测到的 Vivado 版本选择 Ubuntu 基础镜像
+- `Dockerfile`：单一镜像定义；`BASE_IMAGE` 构建参数选择 Ubuntu 18.04 / 20.04 / 22.04 / 24.04
 - `install_vivado.sh`：运行安装器，并在安装时生成批量安装配置（器件系列选择）
 - `hashes.sh`：包含安装器文件哈希及其对应的 Vivado 版本
 - `hashes.local`：可选的、不被 git 跟踪的额外哈希，用于新 Vivado 版本（格式见 `hashes.local.example`）

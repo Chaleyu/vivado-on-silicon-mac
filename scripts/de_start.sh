@@ -53,8 +53,8 @@ then
 	if [ -n "$hw_server_bin" ]
 	then
 		# Make Vivado connect to the xvcd server running on macOS.
-		# Docker Desktop provides host.docker.internal; the Apple container
-		# backend passes host.container.internal through VIVADO_HOST_ALIAS.
+		# host.docker.internal is the default; VIVADO_HOST_ALIAS overrides it for
+		# container backends that use a different host name.
 		xvcd_host="${VIVADO_HOST_ALIAS:-host.docker.internal}"
 		"$hw_server_bin" -e "set auto-open-servers     xilinx-xvc:${xvcd_host}:2542" &
 	fi
