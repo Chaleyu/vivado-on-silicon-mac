@@ -15,6 +15,9 @@ declare -A web_hashes=(
     ["b8c785d03b754766538d6cde1277c4f0"]=202320
     ["8b0e99a41b851b50592d5d6ef1b1263d"]=202410
     ["20c806793b3ea8d79273d5138fbd195f"]=202420
+    ["abe838aa2e2d3d9b10fea94165e9a303"]=202520
+    # 2025.2.1 patch installer — maps to same install config as 2025.2
+    ["85ac3a5975ec7906224896fdce842f21"]=202520
 )
 # hashes for the full installer
 # not tested yet
