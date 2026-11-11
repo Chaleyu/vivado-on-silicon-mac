@@ -4,6 +4,12 @@
 # be run explicitly with an interpreter since it has no shebang
 
 script_dir=$(dirname -- "$(readlink -nf $0)";)
+
+# echo with color
+function f_echo {
+	echo -e "\e[1m\e[33m$1\e[0m"
+}
+
 source "$script_dir/hashes.sh"
 
 # Optional, untracked additions for newly released installers. The file
@@ -19,6 +25,8 @@ then
         local_hash=${local_hash%$'\r'}
         local_version=${local_version%$'\r'}
         local_kind=${local_kind%$'\r'}
+        # Hashes are compared in lowercase.
+        local_hash=$(printf "%s" "$local_hash" | tr 'A-F' 'a-f')
         case "$local_hash" in
             ""|\#*)
                 continue
@@ -44,11 +52,6 @@ then
         fi
     done < "$script_dir/hashes.local"
 fi
-
-# echo with color
-function f_echo {
-	echo -e "\e[1m\e[33m$1\e[0m"
-}
 
 # aborts the script if it isn't run on macOS
 function validate_macos {

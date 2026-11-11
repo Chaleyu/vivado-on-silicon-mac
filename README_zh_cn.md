@@ -9,6 +9,7 @@
 - 2019.2（仅支持 SFD，使用 legacy 镜像）
 - 2021.1
 - 2021.2（仅支持 SFD，使用 legacy 镜像）
+- 2022.1（仅支持 SFD，使用 legacy 镜像）
 - 2022.2
 - 2023.1
 - 2023.2
@@ -39,7 +40,7 @@
 
 你还需要 Vivado 安装文件：要么是 "Linux® Self Extracting Web Installer"（`.bin`），要么是完整的 "SFD" 安装器（`.tar` / `.tar.gz`）。
 
-> AMD 会下架旧版本 Web 安装器所使用的在线下载文件。如果所选版本受影响，安装脚本会给出提示；这些版本请改用 SFD（完整）安装器，它包含全部文件。
+> AMD 会下架旧版本的 Web 安装器：小的 `.bin` 安装器在安装时才下载所需文件，几年后就会失效。Web 安装器仅支持 **2024.1 及更新版本**；2019.2、2021.1、2021.2、2022.1、2022.2、2023.1、2023.2 请使用 SFD（完整）安装器（`.tar` / `.tar.gz`）。`setup.sh` 会拒绝已过期的 Web 安装器并给出明确提示。
 
 ### 安装步骤
 1. 下载这个[工具](https://github.com/ichi4096/vivado-on-silicon-mac/archive/refs/heads/main.zip)。
@@ -81,15 +82,15 @@ USB 烧录支持有限，请参考下方 "USB 连接" 段落。
 - 尝试其他 Vivado 版本
 - 调高容器引擎设置中的 RAM / Swap / CPU 配额。
 
-安装器哈希和批量安装配置与每个 Vivado 版本一一对应。如果受支持的安装器被拒绝，请将其 MD5 添加到 `scripts/hashes.sh`。如果安装器报告未知的模块名，请按 `scripts/install_configs/<version>.txt` 文件顶部的说明，用 `xsetup -b ConfigGen` 重新生成该文件。
+安装器哈希与每个 Vivado 版本一一对应。如果受支持的安装器被拒绝，请将其 MD5 添加到 `scripts/hashes.sh`。批量安装配置现在**在安装时生成**：`install_vivado.sh` 会询问要安装哪些器件系列（默认选择、全部系列、仅 7 系列、或 UltraScale/UltraScale+/Versal），也可以让安装器用 `xsetup -b ConfigGen` 生成选择。因此不再需要维护按版本划分的配置文件。
 
-对于刚发布的 Vivado 版本，你还可以创建一个不被 git 跟踪的 `scripts/hashes.local`（格式见 `scripts/hashes.local.example`），每个安装器一行：`<md5> <版本号> [web|sfd]`，例如 `0123456789abcdef0123456789abcdef 202710`。这样无需修改被跟踪的哈希列表即可在本地支持新版本。如果安装器哈希未知，`setup.sh` 还会尝试从安装文件名推断版本并请你确认（必须已存在对应的安装配置）。
+对于刚发布的 Vivado 版本，你还可以创建一个不被 git 跟踪的 `scripts/hashes.local`（格式见 `scripts/hashes.local.example`），每个安装器一行：`<md5> <版本号> [web|sfd]`，例如 `0123456789abcdef0123456789abcdef 202710`。这样无需修改被跟踪的哈希列表即可在本地支持新版本。如果安装器哈希未知，`setup.sh` 还会尝试从安装文件名推断版本并请你确认；随后安装时的选择菜单会生成配置（没有内置器件目录的版本则回退到 `ConfigGen`）。
 
 Vivado 在 2025.1 更改了安装目录结构（`Xilinx/<version>/Vivado/`，而不再是 `Xilinx/Vivado/<version>/`），2026.1 及之后版本还可能再次调整。启动脚本会先检查已知的目录结构，然后搜索安装目录，因此会尽力适配目录布局的变化。
 
 Vivado 2021.2 及更早版本只支持 Ubuntu 20.04 或更早系统。对于这些版本，`gen_image.sh` 会自动构建 `Dockerfile.legacy`（Ubuntu 20.04），而不是默认的 Ubuntu 24.04 镜像。这些旧版本的测试程度低于新版本；2019.2/2021.2 的安装配置来自真实 ConfigGen 输出，但尚未在本仓库做过端到端验证。如果安装器报告未知模块名，可在安装脚本提示时用 `xsetup -b ConfigGen` 重新生成配置（当某个版本没有随仓库提供的配置时，安装脚本现在会自动这样做）。
 
-2026.1 的安装配置是初版：其模块系列名称与已核实的 2025.1/2025.2 ConfigGen 输出一致，但尚未在 2026.1 安装器上验证。如果安装器报告未知模块，请用 `xsetup -b ConfigGen` 重新生成 `scripts/install_configs/202610.txt`。
+2026.1 的内置器件系列目录（以及 2019.2/2021.2 的具体选择）尚未在真实安装器上验证。如果安装器报告未知模块，请在安装时选择菜单的第 5 项（"ConfigGen"），让安装器针对该版本生成选择。
 
 你也可以通过 `git` 而不只是 ZIP 文件下载本项目，并修改脚本。整个安装过程都包含在仓库目录内，该目录在 Docker 容器中映射为 `/home/user`。
 
@@ -127,8 +128,9 @@ xvcd 已包含在本仓库中，但做了少量修改使其能在现代 macOS �
 - `setup.sh`：安装设置脚本，只需在开始时运行一次
 - `start_container.sh`：启动容器和 "屏幕共享" 会话
 - `configure_docker.sh`：自动设置必要的 Docker Desktop 选项（OrbStack/Colima 下会跳过）
-- `gen_image.sh`：根据 Dockerfile 生成要使用的 Docker 镜像（Vivado <= 2021.2 使用 legacy 镜像）
-- `Dockerfile.legacy`：Vivado <= 2021.2 自动使用的 Ubuntu 20.04 镜像
+- `gen_image.sh`：根据 Dockerfile 生成要使用的 Docker 镜像（旧版 Vivado 使用 legacy 镜像）
+- `Dockerfile.legacy`：Vivado <= 2021.2 自动使用的 legacy Ubuntu 镜像
+- `install_vivado.sh`：运行安装器，并在安装时生成批量安装配置（器件系列选择）
 - `hashes.sh`：包含安装器文件哈希及其对应的 Vivado 版本
 - `hashes.local`：可选的、不被 git 跟踪的额外哈希，用于新 Vivado 版本（格式见 `hashes.local.example`）
 - `linux_start.sh`：Docker 容器启动脚本

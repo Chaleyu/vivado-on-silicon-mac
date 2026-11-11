@@ -9,6 +9,7 @@ The supported versions are:
 - 2019.2 (SFD only, legacy image)
 - 2021.1
 - 2021.2 (SFD only, legacy image)
+- 2022.1 (SFD only, legacy image)
 - 2022.2
 - 2023.1
 - 2023.2
@@ -39,7 +40,7 @@ Rosetta must be installed on your Mac. The installer will ask you to install it 
 
 You will also need the Vivado installer file: either the "Linux® Self Extracting Web Installer" (`.bin`) or the full "SFD" installer (`.tar` / `.tar.gz`).
 
-> AMD retires the online download files used by older web installers. The setup script warns you when a selected version is affected; for those releases use the SFD (full) installer, which contains all files.
+> AMD retires the web installers of older releases: the small `.bin` installer downloads its payload at install time and stops working after a few years. Web installers are only supported for **2024.1 and newer**; for 2019.2, 2021.1, 2021.2, 2022.1, 2022.2, 2023.1 and 2023.2 use the SFD (full) installer (`.tar` / `.tar.gz`). `setup.sh` refuses obsolete web installers with a clear message.
 
 ### Installation
 1. Download this [tool](https://github.com/ichi4096/vivado-on-silicon-mac/archive/refs/heads/main.zip).
@@ -81,15 +82,15 @@ If the installation fails or Vivado crashes, consider:
 - trying a different version of Vivado
 - increasing RAM / Swap / CPU allocations in the container engine settings.
 
-Installer hashes and the batch install configuration are specific to each Vivado release. If a supported installer is rejected, add its MD5 to `scripts/hashes.sh`. If the installer reports unknown module names for a version, regenerate `scripts/install_configs/<version>.txt` with `xsetup -b ConfigGen` as described at the top of that file.
+Installer hashes are specific to each Vivado release. If a supported installer is rejected, add its MD5 to `scripts/hashes.sh`. The batch install configuration is **generated at install time**: `install_vivado.sh` asks which device families to install (default selection, all families, 7-series only, or UltraScale/UltraScale+/Versal only) or can let the installer generate the selection with `xsetup -b ConfigGen`. There are no per-version configuration files to maintain.
 
-For a newly released Vivado version you can also create an untracked `scripts/hashes.local` (see `scripts/hashes.local.example`) with one line per installer: `<md5> <version-code> [web|sfd]`, for example `0123456789abcdef0123456789abcdef 202710`. This adds local support without editing the tracked hash list. If the installer hash is unknown, `setup.sh` additionally tries to detect the version from the installer file name and asks for confirmation (a matching install config must exist).
+For a newly released Vivado version you can also create an untracked `scripts/hashes.local` (see `scripts/hashes.local.example`) with one line per installer: `<md5> <version-code> [web|sfd]`, for example `0123456789abcdef0123456789abcdef 202710`. This adds local support without editing the tracked hash list. If the installer hash is unknown, `setup.sh` additionally tries to detect the version from the installer file name and asks for confirmation; the install-time selection then generates the configuration (or falls back to `ConfigGen` for a version without a built-in catalog).
 
 Vivado changed its installation layout in 2025.1 (`Xilinx/<version>/Vivado/` instead of `Xilinx/Vivado/<version>/`), and 2026.1 and later may change it again. The start script checks the known layouts and then searches the installation directory, so layout changes are handled on a best-effort basis.
 
 Vivado 2021.2 and older are only supported on Ubuntu 20.04 or older. For those versions `gen_image.sh` automatically builds `Dockerfile.legacy` (Ubuntu 20.04) instead of the default Ubuntu 24.04 image. These old releases are less tested than the current ones; the 2019.2 and 2021.2 install configurations were taken from genuine ConfigGen outputs but have not been verified end-to-end here. If the installer reports unknown module names, regenerate the configuration with `xsetup -b ConfigGen` when prompted (the install script now does this automatically when a version has no tracked configuration).
 
-The install configuration for 2026.1 is an initial configuration: its module family names match verified 2025.1/2025.2 ConfigGen outputs but were not verified against the 2026.1 installer. If the installer reports unknown modules, regenerate `scripts/install_configs/202610.txt` with `xsetup -b ConfigGen`.
+The built-in device-family catalogs for 2026.1 (and the exact selection for 2019.2/2021.2) have not been verified against real installers here. If the installer reports unknown module names, choose option 5 ("ConfigGen") in the install-time menu to let the installer generate the selection for that exact release.
 
 You may download via `git` instead of downloading the ZIP file and/or modify the scripts. The installation is wholly contained in the repository folder, which is exposed in the Docker container as the `/home/user` folder.
 
@@ -127,8 +128,9 @@ This version of xvcd only supports the FT2232C chip. There are forks of this sof
 - `setup.sh`: Setup file, to be run once in the beginning
 - `start_container.sh`: Starts the container and "Screen Sharing" session
 - `configure_docker.sh`: Automatically sets necessary Docker Desktop settings (skipped for OrbStack/Colima)
-- `gen_image.sh`: Generates the Docker image to be used according to the Dockerfile (legacy image for Vivado <= 2021.2)
-- `Dockerfile.legacy`: Ubuntu 20.04 image used automatically for Vivado <= 2021.2
+- `gen_image.sh`: Generates the Docker image to be used according to the Dockerfile (legacy images for old Vivado releases)
+- `Dockerfile.legacy`: Legacy Ubuntu image used automatically for Vivado <= 2021.2
+- `install_vivado.sh`: Runs the installer and generates the batch install configuration (device-family selection) at install time
 - `hashes.sh`: Contains the hashes of installer files and associated Vivado versions
 - `hashes.local`: Optional, untracked extra hashes for new Vivado releases (format shown in `hashes.local.example`)
 - `linux_start.sh`: Docker container start script

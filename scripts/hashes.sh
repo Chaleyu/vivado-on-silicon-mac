@@ -7,20 +7,15 @@
 # This script needs to be sourced into other scripts or
 # be run explicitly with an interpreter since it has no shebang
 
-# AMD retires the online files used by the web installer for older releases.
-# Web installers below this version code may fail while downloading their
-# payload; for those releases the SFD (full) installer is the reliable option.
-web_installer_warn_before=202410
+# AMD retires the web installers of older releases (the small .bin that
+# downloads its payload at install time). Those installers no longer work, so
+# their hashes are not listed and setup.sh rejects them; use the SFD (full)
+# installer (.tar / .tar.gz) for these releases instead.
+web_installer_unsupported_before=202410
 
-# hashes for the web installer
+# hashes for the web installer (.bin). Only releases whose web installers are
+# still supported are listed; older releases must use the SFD installer.
 declare -A web_hashes=(
-    # 2019.2, 2021.1 and 2021.2 web installers (MD5s from AMD's download pages)
-    ["b8d415a14a84241bdbae1f6a8a6e9a11"]=201920
-    ["a6b118fffbcfdc7376c2640f276e2ca9"]=202110
-    ["d4fe2978f735e4353f6ccff3405b488b"]=202120
-    ["9bf473b6be0b8531e70fd3d5c0fe4817"]=202220
-    ["e47ad71388b27a6e2339ee82c3c8765f"]=202310
-    ["b8c785d03b754766538d6cde1277c4f0"]=202320
     ["8b0e99a41b851b50592d5d6ef1b1263d"]=202410
     # 2024.2: original publication and the currently published Linux installers
     ["20c806793b3ea8d79273d5138fbd195f"]=202420
@@ -40,8 +35,8 @@ declare -A web_hashes=(
 )
 # hashes for the full installer (SFD)
 declare -A sfd_hashes=(
-   # 2022.1 has no entry in install_configs/, so it is not offered as an SFD option.
-   # ["0bf810cf5eaa28a849ab52b9bfdd20a5"]=202210
+   # 2022.1 SFD installer (verified against AMD's signed .digests file)
+   ["0bf810cf5eaa28a849ab52b9bfdd20a5"]=202210
    # Old SFD installers (.tar.gz); MD5s from AMD's PGP-signed .digests files
    ["e2b2762964ef5f014591b13d77d823ab"]=201920
    ["3a88784dbed40ab1008c28b040717f72"]=202110

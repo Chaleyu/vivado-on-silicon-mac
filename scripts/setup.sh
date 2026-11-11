@@ -115,15 +115,14 @@ do
 	fi
 
 	# Check whether the hash is known. If it is not (a newer or re-packed
-	# installer), fall back to the version encoded in the file name, but only
-	# when an install config for that version exists and the user confirms.
+	# installer), fall back to the version encoded in the file name and ask the
+	# user to confirm. The install configuration is generated at install time.
 	detected_version=""
 	if set_vivado_version_from_hash "$file_hash"
 	then
 		f_echo "Valid file provided. Detected version $vivado_version"
 	elif detected_version=$(version_from_installer_filename "$installation_binary") \
-	&& [ -n "$detected_version" ] \
-	&& [ -f "$script_dir/install_configs/$detected_version.txt" ]
+	&& [ -n "$detected_version" ]
 	then
 		f_echo "The installer hash is not in the supported list."
 		f_echo "The file name suggests Vivado $detected_version (newer release or re-packed installer)."
@@ -141,22 +140,22 @@ do
 	else
 		f_echo "File corrupted or version not supported."
 		f_echo "For a new Vivado release, add its installer MD5 to scripts/hashes.sh"
-		f_echo "(or an untracked scripts/hashes.local) and add scripts/install_configs/<version>.txt."
+		f_echo "(or an untracked scripts/hashes.local)."
 		continue
 	fi
 
 	f_echo "Using Vivado version $vivado_version"
 
-	# AMD retires the online files used by older web installers, so their
-	# installation can fail while downloading. SFD (full) installers carry all
-	# files and do not have this problem.
+	# AMD retires the web installers of older releases: they cannot download
+	# their payload anymore, so they are not supported. Use the SFD installer.
 	case "${installation_binary:l}" in
 	*.bin)
-		if [ -n "$web_installer_warn_before" ] && [ "$vivado_version" -lt "$web_installer_warn_before" ] 2>/dev/null
+		if [ -n "$web_installer_unsupported_before" ] && [ "$vivado_version" -lt "$web_installer_unsupported_before" ] 2>/dev/null
 		then
-			f_echo "Note: AMD marks older web installers as obsolete and may not provide"
-			f_echo "their online files anymore, so this installation can fail while downloading."
-			f_echo "If that happens, use the SFD (full) installer for Vivado $vivado_version instead."
+			f_echo "The web installer for Vivado $vivado_version is obsolete and cannot"
+			f_echo "download its files anymore (AMD retires old web installers)."
+			f_echo "Please provide the SFD (full) installer (.tar / .tar.gz) for this release."
+			continue
 		fi
 		;;
 	esac
