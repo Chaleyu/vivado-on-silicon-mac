@@ -126,11 +126,24 @@ Native USB passthrough is available through some engines but not through all of 
 - **Apple container** (`container` 1.7.x) has no USB/device passthrough option. macOS 27 adds the Accessory Access framework and `VZUSBPassthroughDeviceConfiguration` for Virtualization-based apps, but Apple's `container` CLI does not expose it yet, so xvcd is still required when using that engine.
 - **Docker Desktop and Colima** do not support USB device passthrough on macOS (Docker Desktop only documents USB/IP with a privileged container and a host-side USB/IP server), so xvcd is used there as well.
 
-Therefore xvcd remains the default for all engines. It is included in this repository.
+Therefore xvcd remains the default for all engines. It is vendored in this repository (`scripts/xvcd/`) and maintained here: upstream's active branch receives only occasional fixes (latest synced commit `e24745d`, 2025-03), so this fork carries the source, the macOS build patches and a prebuilt Apple Silicon binary. See [`scripts/xvcd/README.md`](scripts/xvcd/README.md) for the rebuild/sync procedure and the alternatives evaluated.
 
-xvcd is contained in this repository, but with slight changes to make it compile on modern day macOS (compilation requires libusb and libftdi installed via homebrew, though there is a compiled version included). It runs continuously while the docker container is running.
+Active alternatives exist, but none is a dependency-free drop-in with a prebuilt macOS binary:
 
-This version of xvcd only supports the FT2232C chip. There are forks of this software supporting other boards such as [xvcserver by Xilinx](https://github.com/Xilinx/XilinxVirtualCable).
+- [xvc-rs / `xvc-usb`](https://github.com/Schottkyc137/xvc-rs) — MIT, supports FT2232H/FT4232H/FT232H. `xvc-server-usb` is at 0.1.1 (2026-09) and ships **source only** (release archives + crates.io; no prebuilt binaries), and upstream CI is Linux-only. You can build it with Rust 1.91+ (`cargo install xvc-server-usb --version 0.1.1 --locked`) and use it as described below; it has not been hardware-verified with this project yet.
+- [jtag-remote-server](https://github.com/jiegec/jtag-remote-server) — MIT, active (2025), libftdi, FT2232/FT4232 and Digilent HS2/HS3, XVC plus remote-bitbang; builds from source (CMake/Meson/Nix).
+- [mini-xvcd](https://github.com/Rubusch/mini-xvcd) — MIT, FT2232H MPSSE, Raspberry Pi/Linux oriented.
+- [Xilinx/XilinxVirtualCable](https://github.com/Xilinx/XilinxVirtualCable) — reference implementation/sample code for the protocol, Linux-oriented.
+
+You can try any external server without changing the scripts: set `VIVADO_XVC_BIN` and, if needed, `VIVADO_XVC_ARGS`, for example:
+
+```sh
+VIVADO_XVC_BIN="$HOME/.cargo/bin/xvc-usb" zsh ./scripts/start_container.sh
+# or, after building jtag-remote-server for an FT2232H cable (pid 0x6010):
+VIVADO_XVC_BIN="/path/to/jtag-remote-server" VIVADO_XVC_ARGS="-p 6010 -x" zsh ./scripts/start_container.sh
+```
+
+The default remains the vendored xvcd. It supports FTDI FT2232-based cables and runs continuously while the container is running.
 
 ## Files overview
 - `header.sh`: Common shell functions (including container engine detection)
@@ -145,7 +158,7 @@ This version of xvcd only supports the FT2232C chip. There are forks of this sof
 - `linux_start.sh`: Docker container start script
 - `de_start.sh`: Script to be executed when the desktop environment has started
 - `cleanup.sh`: Removes Vivado and dotfiles.
-- `xvcd`: [xvcd](https://github.com/tmbinc/xvcd) source and binary copy
+- `xvcd`: vendored [xvcd](https://github.com/tmbinc/xvcd) source, prebuilt arm64 binary and [maintenance notes](scripts/xvcd/README.md)
 - `install_bin`: Full path to Vivado installation binary
 - `vnc_resolution`: Manually adjustable resolution of the container GUI, formatted like "widthxheight"
 - `vncpasswd`: Password for the VNC connection. It is purposefully weak, as it serves no security function. The VNC server inside the container will not allow outside connections. The password can be changed manually nonetheless.

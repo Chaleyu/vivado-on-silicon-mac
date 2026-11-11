@@ -19,3 +19,5 @@ scripts/hashes.local
 /hash_source
 /installer_version
 .flexlmrc
+scripts/xvcd/bin/obj/
+scripts/xvcd/obj/

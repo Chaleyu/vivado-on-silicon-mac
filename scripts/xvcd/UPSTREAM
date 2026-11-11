@@ -1,4 +1,5 @@
 Upstream: https://github.com/tmbinc/xvcd
+Upstream default branch: ftdi (the master branch is stale since 2015)
 Synced commit: e24745d5fe29b52d30e5c08cda4f2ecdf4909abb (2025-03-06, "Compilation fix (#11)")
 
 Local modifications kept on top of upstream:
@@ -7,8 +8,11 @@ Local modifications kept on top of upstream:
 - bin/xvcd: prebuilt arm64 binary produced with the above Makefile. It was built
   from the source before the e24745d compilation fix; the fix only replaces
   ftdi_usb_purge_buffers() with the equivalent ftdi_tcioflush(), so the binary is
-  functionally unchanged. Rebuild with:
-      brew install libftdi libusb
-      make -C src O=..   # from this directory
+  functionally unchanged.
 
-Source files are otherwise unmodified upstream files.
+Rebuild:
+    brew install libftdi libusb
+    ./build.sh
+
+Maintenance procedure and alternatives evaluated: see README.md in this
+directory. Source files are otherwise unmodified upstream files.

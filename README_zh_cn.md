@@ -126,11 +126,24 @@ Vivado 和 `hw_server` 只运行在 Linux 容器内，因此需要从容器内�
 - **Apple container**（`container` 1.7.x）没有 USB/设备直通选项。macOS 27 为基于 Virtualization 的应用新增了 Accessory Access 框架和 `VZUSBPassthroughDeviceConfiguration`，但 Apple 的 `container` CLI 尚未暴露该能力，因此使用该引擎时仍然需要 xvcd。
 - **Docker Desktop 和 Colima** 在 macOS 上不支持 USB 设备直通（Docker Desktop 仅支持需要特权容器和宿主机 USB/IP 服务的 USB/IP 方案），因此也使用 xvcd。
 
-因此 xvcd 仍然是所有引擎下的默认方案，它已包含在本仓库中。
+因此所有引擎默认仍然使用 xvcd。它以源码形式放在本仓库的 `scripts/xvcd/` 中并由本仓库维护：上游活跃分支只偶尔更新（最近同步的提交为 `e24745d`，2025-03），所以本 fork 保存了源码、macOS 编译补丁和预编译的 Apple Silicon 二进制。重新编译/同步上游的步骤以及评估过的替代方案见 [`scripts/xvcd/README.md`](scripts/xvcd/README.md)。
 
-xvcd 已包含在本仓库中，但做了少量修改使其能在现代 macOS 上编译（编译需要 homebrew 安装的 libusb 和 libftdi，不过仓库中也包含编译好的版本）。它随容器运行而持续运行。
+存在活跃的替代项目，但都没有"免依赖、带预编译 macOS 二进制"的即插即用方案：
 
-此版本的 xvcd 只支持 FT2232C 芯片。也有一些支持其他开发板的 fork，例如 [Xilinx 的 xvcserver](https://github.com/Xilinx/XilinxVirtualCable)。
+- [xvc-rs / `xvc-usb`](https://github.com/Schottkyc137/xvc-rs) — MIT，支持 FT2232H/FT4232H/FT232H。`xvc-server-usb` 目前是 0.1.1（2026-09），**只发布源码**（GitHub release 里是源码压缩包，crates.io 也是源码），没有预编译二进制；上游 CI 只测 Linux。可用 Rust 1.91+ 自行构建（`cargo install xvc-server-usb --version 0.1.1 --locked`），再按下文方式使用；尚未在本项目中用真实硬件验证。
+- [jtag-remote-server](https://github.com/jiegec/jtag-remote-server) — MIT，2025 年底仍活跃，libftdi，支持 FT2232/FT4232 和 Digilent HS2/HS3，提供 XVC 及 remote-bitbang；需要从源码构建（CMake/Meson/Nix）。
+- [mini-xvcd](https://github.com/Rubusch/mini-xvcd) — MIT，FT2232H MPSSE，面向树莓派/Linux。
+- [Xilinx/XilinxVirtualCable](https://github.com/Xilinx/XilinxVirtualCable) — 协议参考实现/示例代码，偏 Linux。
+
+无需改动脚本即可试用外部服务器：设置 `VIVADO_XVC_BIN`，必要时再设置 `VIVADO_XVC_ARGS`，例如：
+
+```sh
+VIVADO_XVC_BIN="$HOME/.cargo/bin/xvc-usb" zsh ./scripts/start_container.sh
+# 或使用为 FT2232H 线缆（pid 0x6010）编译好的 jtag-remote-server：
+VIVADO_XVC_BIN="/path/to/jtag-remote-server" VIVADO_XVC_ARGS="-p 6010 -x" zsh ./scripts/start_container.sh
+```
+
+默认仍使用仓库内的 xvcd。它支持基于 FTDI FT2232 的线缆，并在容器运行期间持续运行。
 
 ## 文件说明
 - `header.sh`：通用 shell 函数（包括容器引擎检测）
@@ -145,7 +158,7 @@ xvcd 已包含在本仓库中，但做了少量修改使其能在现代 macOS �
 - `linux_start.sh`：Docker 容器启动脚本
 - `de_start.sh`：桌面环境启动后执行的脚本
 - `cleanup.sh`：删除 Vivado 和点文件。
-- `xvcd`：[xvcd](https://github.com/tmbinc/xvcd) 源码和二进制副本
+- `xvcd`：[xvcd](https://github.com/tmbinc/xvcd) 源码、预编译 arm64 二进制及[维护说明](scripts/xvcd/README.md)
 - `install_bin`：Vivado 安装二进制文件的完整路径
 - `vnc_resolution`：可手动调整的容器 GUI 分辨率，格式为 "宽x高"
 - `vncpasswd`：VNC 连接密码。它故意设置得很弱，因为它不承担安全功能。容器内的 VNC 服务器不会接受外部连接。你也可以手动修改该密码。
